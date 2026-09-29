@@ -1022,7 +1022,10 @@
     var badge = document.getElementById("modeBadge");
     badge.textContent = ok ? "Live" : "Offline";
     badge.className = "proto-badge" + (ok?"":" offline");
-    document.querySelectorAll("form button[type=submit]").forEach(function(b){ b.disabled = !ok; });
+    // Only the operational forms gate on the live connection — the sign-in
+    // form's own submit button must stay clickable even while "offline",
+    // since signing in is how the connection becomes usable in the first place.
+    document.querySelectorAll("#itemForm button[type=submit], #checkinForm button[type=submit], #deliveryForm button[type=submit]").forEach(function(b){ b.disabled = !ok; });
     var deckBadge = document.getElementById("deckModeBadge");
     if(deckBadge){ deckBadge.textContent = badge.textContent; deckBadge.className = badge.className; }
   }
