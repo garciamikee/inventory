@@ -687,7 +687,7 @@
     <div class="auth-gate-mark">1w</div>
     <h2>Inventory-Logistics System</h2>
     <p id="authGateMsg">Sign in with your @1wan.ph email to continue.</p>
-    <form id="authForm" style="text-align:left;">
+    <form id="authForm" novalidate style="text-align:left;">
       <div class="field" style="margin-bottom:10px;">
         <label>Email</label>
         <input type="email" id="authEmail" placeholder="you@1wan.ph" autocomplete="username" required>
@@ -1690,6 +1690,7 @@
       e.preventDefault();
       err.textContent = ""; info.textContent = "";
       var email = emailInput.value.trim(), password = passwordInput.value;
+      if(!email || !password){ err.textContent = "Enter your email and password."; return; }
       if(!domainOk(email)) return;
       signInBtn.disabled = true;
       window.__appDbReady
