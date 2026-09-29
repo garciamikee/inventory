@@ -21,7 +21,7 @@
     addDoc, onSnapshot, query, where, orderBy, limit
   } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
   import {
-    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+    getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
   } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 
   window.__appDbReady = new Promise(function(resolve, reject){
@@ -39,9 +39,14 @@
       var auth = getAuth(app);
 
       window.__appAuth = auth;
-      window.__appSignIn = function(){ return signInWithPopup(auth, new GoogleAuthProvider()); };
+      // Redirect-based sign-in (not a popup) — avoids the Cross-Origin-Opener-Policy
+      // issue that makes popups intermittently fail with "popup-closed-by-user" on
+      // some hosts/browsers even when the user completed sign-in correctly.
+      window.__appSignIn = function(){ return signInWithRedirect(auth, new GoogleAuthProvider()); };
       window.__appSignOut = function(){ return signOut(auth); };
       window.__appOnAuthChange = function(cb){ return onAuthStateChanged(auth, cb); };
+      window.__appRedirectError = null;
+      getRedirectResult(auth).catch(function(e){ window.__appRedirectError = e; });
 
       function wrapDocSnap(snap){ return { id: snap.id, exists: snap.exists(), data: function(){ return snap.data(); } }; }
       function wrapQuerySnap(snap){ return { docs: snap.docs.map(wrapDocSnap), size: snap.size, empty: snap.empty }; }
@@ -1647,6 +1652,9 @@
     });
 
     window.__appDbReady.then(function(){
+      if(window.__appRedirectError){
+        err.textContent = window.__appRedirectError.message || "Sign-in failed — try again.";
+      }
       window.__appOnAuthChange(function(user){
         var emailOk = user && (!allowedDomain || (user.email||"").toLowerCase().endsWith("@"+allowedDomain));
         if(emailOk){
