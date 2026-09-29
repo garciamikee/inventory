@@ -21,7 +21,8 @@
     addDoc, onSnapshot, query, where, orderBy, limit
   } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
   import {
-    getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
+    getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+    sendPasswordResetEmail, signOut, onAuthStateChanged
   } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 
   window.__appDbReady = new Promise(function(resolve, reject){
@@ -39,14 +40,11 @@
       var auth = getAuth(app);
 
       window.__appAuth = auth;
-      // Redirect-based sign-in (not a popup) — avoids the Cross-Origin-Opener-Policy
-      // issue that makes popups intermittently fail with "popup-closed-by-user" on
-      // some hosts/browsers even when the user completed sign-in correctly.
-      window.__appSignIn = function(){ return signInWithRedirect(auth, new GoogleAuthProvider()); };
+      window.__appSignInEmail = function(email, password){ return signInWithEmailAndPassword(auth, email, password); };
+      window.__appSignUpEmail = function(email, password){ return createUserWithEmailAndPassword(auth, email, password); };
+      window.__appResetPassword = function(email){ return sendPasswordResetEmail(auth, email); };
       window.__appSignOut = function(){ return signOut(auth); };
       window.__appOnAuthChange = function(cb){ return onAuthStateChanged(auth, cb); };
-      window.__appRedirectError = null;
-      getRedirectResult(auth).catch(function(e){ window.__appRedirectError = e; });
 
       function wrapDocSnap(snap){ return { id: snap.id, exists: snap.exists(), data: function(){ return snap.data(); } }; }
       function wrapQuerySnap(snap){ return { docs: snap.docs.map(wrapDocSnap), size: snap.size, empty: snap.empty }; }
@@ -688,9 +686,26 @@
   <div class="modal-box auth-gate-box">
     <div class="auth-gate-mark">1w</div>
     <h2>Inventory-Logistics System</h2>
-    <p id="authGateMsg">Sign in with your company Google account to continue.</p>
-    <button type="button" class="btn" id="googleSignInBtn">Sign in with Google</button>
-    <p class="formmsg err" id="authError" style="margin:14px auto 0; display:inline-block;"></p>
+    <p id="authGateMsg">Sign in with your @1wan.ph email to continue.</p>
+    <form id="authForm" style="text-align:left;">
+      <div class="field" style="margin-bottom:10px;">
+        <label>Email</label>
+        <input type="email" id="authEmail" placeholder="you@1wan.ph" autocomplete="username" required>
+      </div>
+      <div class="field" style="margin-bottom:6px;">
+        <label>Password</label>
+        <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" minlength="6" required>
+      </div>
+      <div style="text-align:right; margin-bottom:14px;">
+        <button type="button" id="authForgotBtn" style="background:none;border:none;color:var(--muted);font-size:11.5px;cursor:pointer;text-decoration:underline;padding:0;">Forgot password?</button>
+      </div>
+      <div class="formfoot" style="justify-content:center;">
+        <button type="submit" class="btn" id="authSignInBtn">Sign in</button>
+        <button type="button" class="btn ghost" id="authSignUpBtn">Create account</button>
+      </div>
+    </form>
+    <p id="authInfo" style="color:var(--muted); font-size:12px; margin:12px 0 0;"></p>
+    <p class="formmsg err" id="authError" style="margin:10px auto 0; display:inline-block;"></p>
   </div>
 </div>
 
@@ -1628,33 +1643,84 @@
     initAuth();
   }
 
+  function friendlyAuthError(e){
+    var code = e && e.code;
+    var map = {
+      "auth/email-already-in-use": "That email already has an account — sign in instead.",
+      "auth/invalid-email": "That doesn't look like a valid email address.",
+      "auth/weak-password": "Password needs at least 6 characters.",
+      "auth/wrong-password": "Incorrect email or password.",
+      "auth/invalid-credential": "Incorrect email or password.",
+      "auth/user-not-found": "No account with that email — use Create account first.",
+      "auth/too-many-requests": "Too many attempts — wait a bit and try again.",
+      "auth/missing-password": "Enter a password."
+    };
+    return map[code] || (e && e.message) || "Something went wrong — try again.";
+  }
+
   function initAuth(){
     var gate = document.getElementById("authGate");
-    var msg = document.getElementById("authGateMsg");
     var err = document.getElementById("authError");
-    var signInBtn = document.getElementById("googleSignInBtn");
+    var info = document.getElementById("authInfo");
+    var form = document.getElementById("authForm");
+    var emailInput = document.getElementById("authEmail");
+    var passwordInput = document.getElementById("authPassword");
+    var signInBtn = document.getElementById("authSignInBtn");
+    var signUpBtn = document.getElementById("authSignUpBtn");
+    var forgotBtn = document.getElementById("authForgotBtn");
     var allowedDomain = (window.ALLOWED_EMAIL_DOMAIN || "").toLowerCase();
 
     setSync(false, "Sign in to connect");
 
     window.__appDbReady.catch(function(e){
       err.textContent = e && e.message ? e.message : "Firebase isn't configured yet.";
-      signInBtn.disabled = true;
+      signInBtn.disabled = true; signUpBtn.disabled = true;
     });
 
-    signInBtn.addEventListener("click", function(){
-      err.textContent = "";
+    function domainOk(email){
+      if(allowedDomain && !email.toLowerCase().endsWith("@"+allowedDomain)){
+        err.textContent = "Only @" + (window.ALLOWED_EMAIL_DOMAIN||"") + " email addresses can use this system.";
+        return false;
+      }
+      return true;
+    }
+
+    form.addEventListener("submit", function(e){
+      e.preventDefault();
+      err.textContent = ""; info.textContent = "";
+      var email = emailInput.value.trim(), password = passwordInput.value;
+      if(!domainOk(email)) return;
       signInBtn.disabled = true;
       window.__appDbReady
-        .then(function(){ return window.__appSignIn(); })
-        .catch(function(e){ err.textContent = e && e.message ? e.message : "Sign-in failed — try again."; })
+        .then(function(){ return window.__appSignInEmail(email, password); })
+        .catch(function(e2){ err.textContent = friendlyAuthError(e2); })
         .then(function(){ signInBtn.disabled = false; });
     });
 
+    signUpBtn.addEventListener("click", function(){
+      err.textContent = ""; info.textContent = "";
+      var email = emailInput.value.trim(), password = passwordInput.value;
+      if(!email || !password){ err.textContent = "Enter an email and password first."; return; }
+      if(!domainOk(email)) return;
+      signUpBtn.disabled = true;
+      window.__appDbReady
+        .then(function(){ return window.__appSignUpEmail(email, password); })
+        .catch(function(e2){ err.textContent = friendlyAuthError(e2); })
+        .then(function(){ signUpBtn.disabled = false; });
+    });
+
+    forgotBtn.addEventListener("click", function(){
+      err.textContent = ""; info.textContent = "";
+      var email = emailInput.value.trim();
+      if(!email){ err.textContent = "Enter your email above, then click Forgot password."; return; }
+      if(!domainOk(email)) return;
+      window.__appDbReady
+        .then(function(){ return window.__appResetPassword(email); })
+        .then(function(){ info.textContent = "Password reset email sent to " + email + "."; })
+        .catch(function(e2){ err.textContent = friendlyAuthError(e2); });
+    });
+
     window.__appDbReady.then(function(){
-      if(window.__appRedirectError){
-        err.textContent = window.__appRedirectError.message || "Sign-in failed — try again.";
-      }
       window.__appOnAuthChange(function(user){
         var emailOk = user && (!allowedDomain || (user.email||"").toLowerCase().endsWith("@"+allowedDomain));
         if(emailOk){
