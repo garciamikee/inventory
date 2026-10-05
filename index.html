@@ -356,7 +356,7 @@
           <div class="dash-cards" id="logisticsCards"></div>
           <div class="table-wrap" id="logisticsDetailWrap" hidden style="margin-top:12px;">
             <table>
-              <thead><tr><th>Date</th><th>Customer</th><th>PO</th><th>Item(s)</th><th>Courier</th><th>Status</th></tr></thead>
+              <thead><tr><th>Date</th><th>Customer</th><th>PO</th><th>Item(s)</th><th>Courier</th><th>Tracking / AWB</th><th>Received</th><th>Status</th></tr></thead>
               <tbody id="logisticsDetailBody"></tbody>
             </table>
           </div>
@@ -654,7 +654,7 @@
       <div class="dash-cards" id="deckLogisticsCards"></div>
       <div class="table-wrap" id="deckLogisticsDetailWrap" hidden style="margin-top:12px;">
         <table>
-          <thead><tr><th>Date</th><th>Customer</th><th>PO</th><th>Item(s)</th><th>Courier</th><th>Status</th></tr></thead>
+          <thead><tr><th>Date</th><th>Customer</th><th>PO</th><th>Item(s)</th><th>Courier</th><th>Tracking / AWB</th><th>Received</th><th>Status</th></tr></thead>
           <tbody id="deckLogisticsDetailBody"></tbody>
         </table>
       </div>
@@ -846,8 +846,8 @@
       var rows = deliveries.filter(function(d){ return d.status === filterVal; })
         .sort(function(a,b){ return new Date(b.createdAt||0)-new Date(a.createdAt||0); });
       body.innerHTML = rows.length ? rows.map(function(d){
-        return '<tr><td>'+esc(fmtDate(d.date))+'</td><td>'+esc(d.customer)+'</td><td class="mono">'+esc(d.po||"—")+'</td><td>'+linesLabel(getLines(d))+'</td><td>'+esc(d.courier||"—")+'</td><td>'+deliveryPill(d.status)+'</td></tr>';
-      }).join("") : '<tr><td colspan="6" class="empty">No entries in this status.</td></tr>';
+        return '<tr><td>'+esc(fmtDate(d.date))+'</td><td>'+esc(d.customer)+'</td><td class="mono">'+esc(d.po||"—")+'</td><td>'+linesLabel(getLines(d))+'</td><td>'+esc(d.courier||"—")+'</td><td class="mono">'+esc(d.trackingNo||"—")+'</td><td>'+esc(fmtDate(d.receivedDate))+'</td><td>'+deliveryPill(d.status)+'</td></tr>';
+      }).join("") : '<tr><td colspan="8" class="empty">No entries in this status.</td></tr>';
       wrap.hidden = false;
     } else { wrap.hidden = true; }
   }
