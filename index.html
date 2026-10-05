@@ -515,6 +515,8 @@
                 </select>
               </div>
               <div class="field"><label>Courier</label><input name="courier" placeholder="e.g. Lalamove"></div>
+              <div class="field"><label>Tracking no. / AWB</label><input name="trackingNo" placeholder="e.g. 3322362470"></div>
+              <div class="field"><label>Received date</label><input name="receivedDate" type="date" id="receivedDateInput"></div>
               <div class="field"><label>Logged by</label><input name="loggedBy" placeholder="Your name"></div>
             </div>
 
@@ -542,8 +544,8 @@
           <div class="block-head"><h2>Delivery tracker</h2><span class="hint">for delivery → in transit → delivered</span></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Date</th><th>Customer</th><th>PO</th><th>Item(s)</th><th>Purpose</th><th>Courier</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="deliveryBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+              <thead><tr><th>Date</th><th>Customer</th><th>PO</th><th>Item(s)</th><th>Purpose</th><th>Courier</th><th>Tracking / AWB</th><th>Received</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="deliveryBody"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
             </table>
           </div>
           <div class="legend">
@@ -950,8 +952,8 @@
       var nextLabel = idx>=0 && idx < STAGES.length-1 ? "Mark " + STAGES[idx+1] : "";
       var btn = nextLabel ? '<button type="button" class="btn ghost small" data-advance="'+esc(r.id)+'">'+nextLabel+'</button>' : '<span class="pill good">Complete</span>';
       var purpose = getPurpose(r);
-      return '<tr><td>'+esc(fmtDate(r.date))+'</td><td>'+esc(r.customer)+'</td><td class="mono">'+esc(r.po||"—")+'</td><td>'+linesLabel(getLines(r))+'</td><td>'+(purpose==="Internal Testing"?'<span class="pill neutral">Internal testing</span>':'<span class="pill accentpill">Client delivery</span>')+'</td><td>'+esc(r.courier||"—")+'</td><td>'+deliveryPill(r.status)+statusTrack(r.status)+'</td><td>'+btn+actionButtons("delivery", r.id)+'</td></tr>';
-    }).join("") : '<tr><td colspan="8" class="empty">No deliveries logged yet.</td></tr>';
+      return '<tr><td>'+esc(fmtDate(r.date))+'</td><td>'+esc(r.customer)+'</td><td class="mono">'+esc(r.po||"—")+'</td><td>'+linesLabel(getLines(r))+'</td><td>'+(purpose==="Internal Testing"?'<span class="pill neutral">Internal testing</span>':'<span class="pill accentpill">Client delivery</span>')+'</td><td>'+esc(r.courier||"—")+'</td><td class="mono">'+esc(r.trackingNo||"—")+'</td><td>'+esc(fmtDate(r.receivedDate))+'</td><td>'+deliveryPill(r.status)+statusTrack(r.status)+'</td><td>'+btn+actionButtons("delivery", r.id)+'</td></tr>';
+    }).join("") : '<tr><td colspan="10" class="empty">No deliveries logged yet.</td></tr>';
   }
 
   function renderBudget(){
@@ -1335,7 +1337,9 @@
       var nextStatus = STAGES[idx+1];
       btn.disabled = true;
       var history = (rec.statusHistory||[]).concat([{status:nextStatus, at:new Date().toISOString()}]);
-      db.doc("deliveries/"+id).update({status:nextStatus, statusHistory:history, updatedAt:new Date().toISOString()}).catch(function(){ btn.disabled=false; });
+      var upd = {status:nextStatus, statusHistory:history, updatedAt:new Date().toISOString()};
+      if(nextStatus === "Delivered" && !rec.receivedDate) upd.receivedDate = new Date().toISOString().slice(0,10);
+      db.doc("deliveries/"+id).update(upd).catch(function(){ btn.disabled=false; });
     });
 
     // ---------------- Edit / delete (Inventory List, Warehouse Log, Delivery Tracker) ----------------
@@ -1401,6 +1405,8 @@
       form.elements.po.value = rec.po||"";
       form.elements.purpose.value = getPurpose(rec);
       form.elements.courier.value = rec.courier||"";
+      form.elements.trackingNo.value = rec.trackingNo||"";
+      form.elements.receivedDate.value = rec.receivedDate||"";
       form.elements.loggedBy.value = rec.loggedBy||"";
       form.elements.location.value = rec.location || "7th Floor";
       form.elements.from.value = rec.from||"";
@@ -1486,7 +1492,7 @@
     document.getElementById("budgetMonth").addEventListener("change", renderBudget);
 
     var todayStr = new Date().toISOString().slice(0,10);
-    document.querySelectorAll('input[type="date"]').forEach(function(i){ i.value = todayStr; });
+    document.querySelectorAll('input[type="date"]:not(#receivedDateInput)').forEach(function(i){ i.value = todayStr; });
 
     function exitItemEdit(){
       editingItemId = null;
@@ -1619,6 +1625,7 @@
       var purpose = data.purpose || "Delivery to Client";
       var payload = {
         date:data.date, customer:data.customer, po:data.po||"", courier:data.courier||"", purpose:purpose,
+        trackingNo:(data.trackingNo||"").trim(), receivedDate:data.receivedDate||"",
         loggedBy:data.loggedBy||"", lines:resolved, updatedAt:new Date().toISOString()
       };
       if(purpose === "Delivery to Client"){
