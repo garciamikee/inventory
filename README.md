@@ -83,6 +83,24 @@ own), then either:
   template, fill in Model + Serial Number rows, upload it — this also
   auto-creates any SKU that doesn't exist yet.
 
+## Request for Testing
+
+A separate section (and a form on the standalone Viewing Deck) for putting
+units out on trial with a customer. Records live in a `test_requests`
+Firestore collection — no extra setup, the existing rules already cover it.
+
+- **Filing** takes the units out of stock immediately, like a check-out.
+  "Requested by" is the signed-in email.
+- **Statuses:** On going → **Passed** or **Returned**.
+- **Passed** units show a *Proceed to check out* button, which opens the
+  Delivery Tracker form pre-filled. Stock is *not* deducted a second time
+  (item/qty/serials are locked), and the request shows "Checked out".
+- **Returned** puts the units and their serial numbers back in the
+  Inventory List.
+- The Overview's **Units out for testing** counts On going + Passed requests
+  that haven't gone to a delivery yet (plus any older check-outs logged with
+  the "Internal testing" purpose).
+
 ## Testing locally before you deploy
 
 `index.html` uses ES modules (`<script type="module">`), which browsers
