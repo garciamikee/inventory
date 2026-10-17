@@ -216,6 +216,7 @@
   .subtable-title .n{ font-weight:400; color:var(--muted); font-size:12px; }
 
   .icon-btn{ width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink); font-size:16px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; line-height:1; }
+  .icon-btn.labeled{ width:auto; padding:0 12px; font-size:12.5px; }
   .icon-btn:hover{ border-color:var(--accent); color:var(--accent); }
   .icon-btn[aria-pressed="true"]{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
 
@@ -443,11 +444,14 @@
 
       <!-- WAREHOUSE -->
       <section class="view" id="view-warehouse">
-        <p class="lede">Everything that has physically arrived at 1WAN, from courier hand-off to shelf. Logging a check-in adds the serial numbers and quantity to stock immediately.</p>
+        <p class="lede">Everything that has physically arrived at 1WAN, from courier hand-off to shelf. Logging a check-in adds the serial numbers and quantity to stock immediately. Return units puts units that went out but weren't used back into the inventory list.</p>
 
         <div class="block-head">
           <div></div>
-          <div class="toolbar"><button class="icon-btn" id="toggleCheckin" title="Log a check-in">+</button></div>
+          <div class="toolbar">
+            <button class="icon-btn labeled" id="toggleCheckin" title="Log a check-in">+ Check in</button>
+            <button class="icon-btn labeled" id="toggleReturn" title="Return unused units to stock">↩ Return units</button>
+          </div>
         </div>
 
         <div class="formcard" id="checkinCard" hidden>
@@ -478,12 +482,48 @@
           </form>
         </div>
 
+        <div class="formcard" id="returnFormCard" hidden>
+          <div class="subtable-title" id="returnFormTitle">Return units to stock</div>
+          <div class="seg-toggle" id="returnModeToggle">
+            <button type="button" data-mode="single" aria-pressed="true">Single item</button>
+            <button type="button" data-mode="multi" aria-pressed="false">Multiple items</button>
+          </div>
+          <form id="returnForm">
+            <div class="formgrid">
+              <div class="field"><label>Date</label><input name="date" type="date" required></div>
+              <div class="field span2"><label>Remarks — optional</label><input name="remarks" placeholder="e.g. not used in PO 2026-00090"></div>
+            </div>
+            <div style="margin:14px 0 8px;">
+              <div class="lines-editor">
+                <div class="lines-head"><span>Item</span><span>Qty</span><span>Serial number(s) — required</span><span></span></div>
+                <div id="returnLines" data-no-new="1"></div>
+              </div>
+              <button type="button" class="btn ghost small" id="returnAddLine" hidden>+ Add line</button>
+            </div>
+            <div class="formfoot">
+              <button class="btn" type="submit" id="returnFormSubmit">Return to stock</button>
+              <button class="btn ghost small" type="button" id="returnFormCancel" hidden>Cancel edit</button>
+              <span class="formmsg" id="returnFormMsg"></span>
+            </div>
+          </form>
+        </div>
+
         <section class="block">
           <div class="block-head"><h2>Check-in log</h2><span class="hint">received &amp; added to stock, newest first</span></div>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Date</th><th>Courier</th><th>From</th><th>Item(s)</th><th>Remarks</th><th>By</th><th>Actions</th></tr></thead>
               <tbody id="checkinBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="block">
+          <div class="block-head"><h2>Returned units</h2><span class="hint">unused units added back to stock, newest first</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Item(s)</th><th>Remarks</th><th>Returned by</th><th>Actions</th></tr></thead>
+              <tbody id="returnBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
             </table>
           </div>
         </section>
@@ -775,12 +815,13 @@
 <script>
 (function(){
   var db = null;
-  var state = { inventory: [], checkins: [], deliveries: [], testRequests: [] };
+  var state = { inventory: [], checkins: [], deliveries: [], testRequests: [], returns: [] };
   var activeCat = "All";
   var logFilter = null, deckLogFilter = null, testingOpen = false;
   var checkinMode = "single", checkoutMode = "single", testMode = "single";
   var editingItemId = null, editingCheckinId = null, editingDeliveryId = null;
   var editingTestId = null, pendingTestRequestId = null;
+  var editingReturnId = null, returnMode = "single";
 
   var pageTitles = {overview:"Overview", inventory:"Inventory List", warehouse:"Warehouse Log", testing:"Request for Testing", delivery:"Delivery Tracker", budget:"Logistics Budget", flow:"Process Flow"};
   var STAGES = ["For Delivery","In Transit","Delivered"];
@@ -962,6 +1003,8 @@
       return {t:"in", at:c.createdAt, html:'<b>Warehouse</b> checked in '+linesLabel(getLines(c))+' from '+esc(c.vendor||c.courier)};
     }).concat(state.deliveries.map(function(d){
       return {t:"out", at:d.createdAt, html:'<b>Check-out</b> — '+linesLabel(getLines(d))+' to '+esc(d.customer)+' ('+esc(d.status)+')'};
+    })).concat(state.returns.map(function(r){
+      return {t:"in", at:r.createdAt, html:'<b>Returned to stock</b> — '+linesLabel(getLines(r))};
     }));
     feedItems.sort(function(a,b){ return new Date(b.at||0) - new Date(a.at||0); });
     feedItems = feedItems.slice(0,8);
@@ -1149,7 +1192,19 @@
     }).join("") : '<tr><td colspan="7" class="empty">No test requests filed yet.</td></tr>';
   }
 
-  function renderAll(){ renderOverview(); renderInventory(); renderWarehouse(); renderTesting(); renderDelivery(); renderBudget(); renderDeck(); }
+  function renderReturns(){
+    document.querySelectorAll('#returnLines select.line-item').forEach(function(s){ fillItemSelect(s, true); });
+    var rows = state.returns.slice().sort(function(a,b){ return new Date(b.createdAt||0) - new Date(a.createdAt||0); });
+    document.getElementById("returnBody").innerHTML = rows.length ? rows.map(function(r){
+      var itemsCell = getLines(r).map(function(l){
+        var s = (l.serials||[]).join(", ");
+        return '<div>'+esc(itemLabelOf(l.itemId))+' ×'+esc(l.qty)+(s?'<div class="il-serials">'+esc(s)+'</div>':'')+'</div>';
+      }).join("");
+      return '<tr><td>'+esc(fmtDate(r.date))+'</td><td>'+itemsCell+'</td><td>'+esc(r.remarks||"—")+'</td><td>'+esc(r.loggedBy||"—")+'</td><td>'+actionButtons("return", r.id)+'</td></tr>';
+    }).join("") : '<tr><td colspan="5" class="empty">No units returned yet.</td></tr>';
+  }
+
+  function renderAll(){ renderOverview(); renderInventory(); renderWarehouse(); renderReturns(); renderTesting(); renderDelivery(); renderBudget(); renderDeck(); }
 
   // ---------------- Routing (main app vs. public viewing deck) ----------------
   function applyRoute(){
@@ -1169,7 +1224,7 @@
     // Only the operational forms gate on the live connection — the sign-in
     // form's own submit button must stay clickable even while "offline",
     // since signing in is how the connection becomes usable in the first place.
-    document.querySelectorAll("#itemForm button[type=submit], #checkinForm button[type=submit], #deliveryForm button[type=submit], #testingForm button[type=submit]").forEach(function(b){ b.disabled = !ok; });
+    document.querySelectorAll("#itemForm button[type=submit], #checkinForm button[type=submit], #deliveryForm button[type=submit], #testingForm button[type=submit], #returnForm button[type=submit]").forEach(function(b){ b.disabled = !ok; });
     var deckBadge = document.getElementById("deckModeBadge");
     if(deckBadge){ deckBadge.textContent = badge.textContent; deckBadge.className = badge.className; }
   }
@@ -1186,6 +1241,11 @@
       state.inventory = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderAll();
     }, function(){ setSync(false, "Connection lost — showing last loaded data"); });
+
+    db.collection("unit_returns").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){
+      state.returns = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      renderAll();
+    });
 
     db.collection("warehouse_log").orderBy("createdAt","desc").limit(200).onSnapshot(function(snap){
       state.checkins = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
@@ -1857,6 +1917,142 @@
       }
       resetLines("checkinLines");
     });
+
+    // ---------------- Return units (unused units go back into stock) ----------------
+    toggleCard("toggleReturn","returnFormCard");
+    wireModeToggle("returnModeToggle","returnAddLine","returnLines", function(m){returnMode=m;});
+    document.getElementById("returnAddLine").addEventListener("click", function(){ addLine("returnLines"); });
+    resetLines("returnLines");
+    document.getElementById("returnBody").addEventListener("click", function(e){
+      var editBtn = e.target.closest("[data-edit-kind]");
+      var delBtn = e.target.closest("[data-del-kind]");
+      if(editBtn){ var rec = state.returns.find(function(r){ return r.id === editBtn.dataset.editId; }); if(rec) openReturnEdit(rec); }
+      if(delBtn) deleteReturnRow(delBtn.dataset.delId);
+    });
+
+    function exitReturnEdit(){
+      editingReturnId = null;
+      document.getElementById("returnFormTitle").textContent = "Return units to stock";
+      document.getElementById("returnFormSubmit").textContent = "Return to stock";
+      document.getElementById("returnFormCancel").hidden = true;
+    }
+    document.getElementById("returnFormCancel").addEventListener("click", function(){
+      exitReturnEdit();
+      document.getElementById("returnForm").reset();
+      document.querySelector('#returnForm input[name="date"]').value = new Date().toISOString().slice(0,10);
+      resetLines("returnLines");
+      setSegMode("returnModeToggle","returnAddLine","returnLines","single", function(m){returnMode=m;});
+      document.getElementById("returnFormCard").hidden = true;
+      document.getElementById("toggleReturn").setAttribute("aria-pressed","false");
+    });
+
+    function openReturnEdit(rec){
+      editingReturnId = rec.id;
+      var form = document.getElementById("returnForm");
+      form.elements.date.value = rec.date||"";
+      form.elements.remarks.value = rec.remarks||"";
+      var lines = getLines(rec);
+      fillLinesFor("returnLines", lines);
+      setSegMode("returnModeToggle","returnAddLine","returnLines", lines.length>1?"multi":"single", function(m){returnMode=m;});
+      document.getElementById("returnFormTitle").textContent = "Edit returned units";
+      document.getElementById("returnFormSubmit").textContent = "Save changes";
+      document.getElementById("returnFormCancel").hidden = false;
+      document.getElementById("returnFormCard").hidden = false;
+      document.getElementById("toggleReturn").setAttribute("aria-pressed","true");
+      document.getElementById("returnFormCard").scrollIntoView({block:"center"});
+    }
+
+    // Undoing a return takes the units back out of stock — only possible while they're still on the shelf.
+    function returnUndoProblem(lines){
+      var need = {}, serialsNeeded = {};
+      lines.forEach(function(l){
+        need[l.itemId] = (need[l.itemId]||0) + (parseInt(l.qty,10)||0);
+        serialsNeeded[l.itemId] = (serialsNeeded[l.itemId]||[]).concat(l.serials||[]);
+      });
+      var ids = Object.keys(need);
+      for(var i=0;i<ids.length;i++){
+        var it = state.inventory.find(function(x){ return x.id === ids[i]; });
+        if(!it) continue; // item since deleted — nothing to reconcile
+        if((it.stock||0) < need[ids[i]]) return "Only "+(it.stock||0)+" of "+it.model+" in stock — some of these returned units have already gone out again.";
+        var have = {}; (it.serials||[]).forEach(function(s){ have[s] = true; });
+        var missing = serialsNeeded[ids[i]].filter(function(s){ return !have[s]; });
+        if(missing.length) return "Serial number(s) "+missing.join(", ")+" ("+it.model+") are no longer in stock — they've already gone out again.";
+      }
+      return "";
+    }
+
+    // Serials being returned must not already be in stock, on an active test request, or listed twice.
+    function returnSerialProblem(lines, ignoreLines){
+      var ignore = {};
+      (ignoreLines||[]).forEach(function(l){ (l.serials||[]).forEach(function(s){ ignore[l.itemId+"|"+s] = true; }); });
+      var testing = {};
+      state.testRequests.forEach(function(r){
+        if(!testIsActive(r)) return;
+        getLines(r).forEach(function(l){ (l.serials||[]).forEach(function(s){ testing[l.itemId+"|"+s] = r; }); });
+      });
+      var seen = {};
+      for(var i=0;i<lines.length;i++){
+        var it = state.inventory.find(function(x){ return x.id === lines[i].itemId; });
+        for(var j=0;j<lines[i].serials.length;j++){
+          var s = lines[i].serials[j], key = lines[i].itemId+"|"+s;
+          if(seen[key]) return "Serial number "+s+" is listed twice.";
+          seen[key] = true;
+          if(it && (it.serials||[]).indexOf(s) > -1 && !ignore[key]) return "Serial number "+s+" is already in stock for "+it.model+".";
+          if(testing[key]) return "Serial number "+s+" is on an open test request ("+testing[key].customer+"). Set that request to Returned instead.";
+        }
+      }
+      return "";
+    }
+
+    wireForm("returnForm","returnFormMsg", async function(data, msg){
+      var lines = readLines("returnLines", msg);
+      if(!lines) return false;
+      var wasEditing = editingReturnId;
+      var old = wasEditing ? state.returns.find(function(r){ return r.id === wasEditing; }) : null;
+      var oldLines = old ? getLines(old) : [];
+      var problem = old ? returnUndoProblem(oldLines) : "";
+      if(!problem) problem = returnSerialProblem(lines, oldLines);
+      if(problem){ msg.textContent = problem; msg.className = "formmsg err"; return false; }
+      if(old){
+        for(var oi=0; oi<oldLines.length; oi++){
+          await adjustStock(oldLines[oi].itemId, -(parseInt(oldLines[oi].qty,10)||0), [], oldLines[oi].serials||[]);
+        }
+      }
+      var resolved = [];
+      for(var i=0;i<lines.length;i++){
+        resolved.push({itemId:lines[i].itemId, itemLabel:itemLabelOf(lines[i].itemId), qty:lines[i].qty, serials:lines[i].serials});
+        await adjustStock(lines[i].itemId, lines[i].qty, lines[i].serials, []);
+      }
+      var payload = { date:data.date, remarks:data.remarks||"", lines:resolved };
+      if(old){
+        payload.updatedAt = new Date().toISOString();
+        await db.doc("unit_returns/"+wasEditing).update(payload);
+        exitReturnEdit();
+      } else {
+        payload.loggedBy = currentUserEmail();
+        payload.createdAt = new Date().toISOString();
+        await db.collection("unit_returns").add(payload);
+      }
+      resetLines("returnLines");
+      setSegMode("returnModeToggle","returnAddLine","returnLines","single", function(m){returnMode=m;});
+    });
+
+    async function deleteReturnRow(id){
+      var rec = state.returns.find(function(r){ return r.id === id; });
+      if(!rec || !db) return;
+      var lines = getLines(rec);
+      var problem = returnUndoProblem(lines);
+      if(problem){ alertDialog("Can't delete this return.\n"+problem); return; }
+      var ok = await confirmDialog("Delete this return?\n"+plainLinesLabel(lines)+" will be taken back out of stock.\nThis cannot be undone.");
+      if(!ok) return;
+      try{
+        if(editingReturnId === id) exitReturnEdit();
+        for(var i=0;i<lines.length;i++){
+          await adjustStock(lines[i].itemId, -(parseInt(lines[i].qty,10)||0), [], lines[i].serials||[]);
+        }
+        await db.doc("unit_returns/"+id).delete();
+      }catch(err){ alertDialog("Couldn't delete: " + (err && err.message ? err.message : "try again.")); }
+    }
 
     function exitDeliveryEdit(){
       editingDeliveryId = null;

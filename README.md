@@ -106,6 +106,21 @@ Firestore collection — no extra setup, the existing rules already cover it.
   that haven't gone to a delivery yet (plus any older check-outs logged with
   the "Internal testing" purpose).
 
+## Return Units (Warehouse Log)
+
+Next to **+ Check in** on the Warehouse Log there is **↩ Return units**, for
+units that went out but weren't used. It works like a check-in — pick an item
+from the inventory list (existing items only), a quantity and the serial
+numbers (single or multiple items) — but it is logged separately in a
+**Returned units** table (Firestore collection `unit_returns`, covered by the
+existing rules) and adds the units and serials back to the Inventory List.
+
+- A serial that is already in stock, on an open test request (use *Returned*
+  on that request instead), or listed twice is refused.
+- Edit and Delete reverse the stock change. They are blocked if any of the
+  returned units have already gone out again.
+- Returns also show up in the Overview activity feed.
+
 ## Testing locally before you deploy
 
 `index.html` uses ES modules (`<script type="module">`), which browsers
