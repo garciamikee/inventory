@@ -500,18 +500,23 @@
 
         <div class="formcard" id="testingFormCard" hidden>
           <div class="subtable-title" id="testingFormTitle">Request for testing</div>
+          <div class="seg-toggle" id="testModeToggle">
+            <button type="button" data-mode="single" aria-pressed="true">Single item</button>
+            <button type="button" data-mode="multi" aria-pressed="false">Multiple items (several units in one request)</button>
+          </div>
           <form id="testingForm">
             <div class="formgrid">
               <div class="field"><label>Request date</label><input name="date" type="date" required></div>
               <div class="field"><label>Customer name</label><input name="customer" required placeholder="e.g. Infinivan"></div>
               <div class="field"><label>PO / RFQ no.</label><input name="po" required placeholder="e.g. RFQ-2026-014"></div>
               <div class="field"><label>Requested by</label><input id="testRequestedBy" readonly placeholder="Your sign-in email"></div>
-              <div class="field span2"><label>Item</label><select name="itemId" required></select></div>
-              <div class="field"><label>Quantity</label><input name="qty" type="number" min="1" value="1" required></div>
-              <div class="field" style="grid-column:1/-1;">
-                <label>Serial number(s) — required, one per unit</label>
-                <input name="serials" placeholder="e.g. SN001, SN002" required>
+            </div>
+            <div style="margin:14px 0 8px;">
+              <div class="lines-editor">
+                <div class="lines-head"><span>Item</span><span>Qty</span><span>Serial number(s) — required</span><span></span></div>
+                <div id="testLines" data-no-new="1"></div>
               </div>
+              <button type="button" class="btn ghost small" id="testAddLine" hidden>+ Add line</button>
             </div>
             <div class="formfoot">
               <button class="btn" type="submit" id="testingFormSubmit">File request</button>
@@ -773,7 +778,7 @@
   var state = { inventory: [], checkins: [], deliveries: [], testRequests: [] };
   var activeCat = "All";
   var logFilter = null, deckLogFilter = null, testingOpen = false;
-  var checkinMode = "single", checkoutMode = "single";
+  var checkinMode = "single", checkoutMode = "single", testMode = "single";
   var editingItemId = null, editingCheckinId = null, editingDeliveryId = null;
   var editingTestId = null, pendingTestRequestId = null;
 
@@ -1006,9 +1011,11 @@
   function fillItemSelect(sel, keepValue){
     var current = keepValue ? sel.value : null;
     var items = state.inventory.slice().sort(function(a,b){ return a.model.localeCompare(b.model); });
+    // Test requests may only use items that already exist in the inventory list.
+    var allowNew = !sel.closest("[data-no-new]");
     sel.innerHTML = '<option value="">Select item…</option>' +
       items.map(function(i){ return '<option value="'+esc(i.id)+'">'+esc(i.model)+' — '+ (i.stock||0) +' on hand</option>'; }).join("") +
-      '<option value="__new__">+ New product…</option>';
+      (allowNew ? '<option value="__new__">+ New product…</option>' : '');
     if(current) sel.value = current;
   }
 
@@ -1085,12 +1092,28 @@
     if(mainBadge && deckBadge){ deckBadge.textContent = mainBadge.textContent; deckBadge.className = mainBadge.className; }
   }
 
-  function fillTestItemSelect(sel){
-    var current = sel.value;
-    var items = state.inventory.slice().sort(function(a,b){ return a.model.localeCompare(b.model); });
-    sel.innerHTML = '<option value="">Select item…</option>' +
-      items.map(function(i){ return '<option value="'+esc(i.id)+'">'+esc(i.model)+' — '+(i.stock||0)+' on hand</option>'; }).join("");
-    if(current) sel.value = current;
+  // Duplicate guard: a serial that's already on another test request (anything not Returned,
+  // including ones checked out to a delivery) can't be requested again. `ignoreId` is the
+  // request being edited, so it doesn't conflict with itself.
+  function findTestSerialConflict(lines, ignoreId){
+    var taken = {};
+    state.testRequests.forEach(function(r){
+      if(r.id === ignoreId || r.status === "Returned") return;
+      getLines(r).forEach(function(l){
+        (l.serials||[]).forEach(function(s){ taken[l.itemId+"|"+s] = r; });
+      });
+    });
+    var seen = {};
+    for(var i=0;i<lines.length;i++){
+      for(var j=0;j<lines[i].serials.length;j++){
+        var s = lines[i].serials[j], key = lines[i].itemId+"|"+s;
+        if(seen[key]) return "Serial number "+s+" is listed twice in this request.";
+        seen[key] = true;
+        var r = taken[key];
+        if(r) return "Serial number "+s+" is already on a test request ("+r.customer+", "+(r.po||"no PO")+" — "+(r.deliveryId ? "Checked out" : r.status)+"). Check the list below before filing again.";
+      }
+    }
+    return "";
   }
 
   function testActions(r){
@@ -1110,15 +1133,18 @@
   }
 
   function renderTesting(){
-    fillTestItemSelect(document.querySelector('#testingForm select[name="itemId"]'));
+    document.querySelectorAll('#testLines select.line-item').forEach(function(s){ fillItemSelect(s, true); });
     var by = document.getElementById("testRequestedBy");
     if(by){ by.defaultValue = currentUserEmail(); if(!editingTestId) by.value = currentUserEmail(); }
     var rows = state.testRequests.slice().sort(function(a,b){ return new Date(b.createdAt||0) - new Date(a.createdAt||0); });
     document.getElementById("testingBody").innerHTML = rows.length ? rows.map(function(r){
       var lines = getLines(r);
-      var serials = lines.map(function(l){ return (l.serials||[]).join(", "); }).filter(Boolean).join(" · ");
+      var itemsCell = lines.map(function(l){
+        var s = (l.serials||[]).join(", ");
+        return '<div>'+esc(itemLabelOf(l.itemId))+' ×'+esc(l.qty)+(s?'<div class="il-serials">'+esc(s)+'</div>':'')+'</div>';
+      }).join("");
       return '<tr><td>'+esc(fmtDate(r.requestDate))+'</td><td>'+esc(r.customer)+'</td><td class="mono">'+esc(r.po||"—")+'</td>'+
-        '<td>'+linesLabel(lines)+(serials?'<div class="il-serials">'+esc(serials)+'</div>':'')+'</td>'+
+        '<td>'+itemsCell+'</td>'+
         '<td>'+esc(r.requestedBy||"—")+'</td><td>'+testPill(r)+'</td><td>'+testActions(r)+'</td></tr>';
     }).join("") : '<tr><td colspan="7" class="empty">No test requests filed yet.</td></tr>';
   }
@@ -1412,10 +1438,13 @@
     }
     wireModeToggle("checkinModeToggle","checkinAddLine","checkinLines", function(m){checkinMode=m;});
     wireModeToggle("checkoutModeToggle","checkoutAddLine","checkoutLines", function(m){checkoutMode=m;});
+    wireModeToggle("testModeToggle","testAddLine","testLines", function(m){testMode=m;});
     document.getElementById("checkinAddLine").addEventListener("click", function(){ addLine("checkinLines"); });
     document.getElementById("checkoutAddLine").addEventListener("click", function(){ addLine("checkoutLines"); });
+    document.getElementById("testAddLine").addEventListener("click", function(){ addLine("testLines"); });
     resetLines("checkinLines");
     resetLines("checkoutLines");
+    resetLines("testLines");
 
     var purposeSelect = document.getElementById("purposeSelect");
     var budgetFields = document.getElementById("budgetFields");
@@ -1610,6 +1639,7 @@
     document.getElementById("testingFormCancel").addEventListener("click", function(){
       exitTestEdit();
       document.getElementById("testingForm").reset();
+      resetLines("testLines");
       document.querySelector('#testingForm input[name="date"]').value = new Date().toISOString().slice(0,10);
       document.getElementById("testRequestedBy").value = currentUserEmail();
       document.getElementById("testingFormCard").hidden = true;
@@ -1619,13 +1649,12 @@
     function openTestEdit(rec){
       editingTestId = rec.id;
       var form = document.getElementById("testingForm");
-      var line = getLines(rec)[0] || {};
+      var lines = getLines(rec);
       form.elements.date.value = rec.requestDate||"";
       form.elements.customer.value = rec.customer||"";
       form.elements.po.value = rec.po||"";
-      form.elements.itemId.value = line.itemId||"";
-      form.elements.qty.value = line.qty||1;
-      form.elements.serials.value = (line.serials||[]).join(", ");
+      fillLinesFor("testLines", lines);
+      setSegMode("testModeToggle","testAddLine","testLines", lines.length>1?"multi":"single", function(m){testMode=m;});
       document.getElementById("testRequestedBy").value = rec.requestedBy||"";
       document.getElementById("testingFormTitle").textContent = "Edit test request";
       document.getElementById("testingFormSubmit").textContent = "Save changes";
@@ -1920,32 +1949,42 @@
     wireForm("testingForm","testingFormMsg", async function(data, msg){
       var email = currentUserEmail();
       if(!email){ msg.textContent = "Couldn't read your sign-in email — sign in again and retry."; msg.className = "formmsg err"; return false; }
-      var itemId = data.itemId;
-      var qty = parseInt(data.qty,10) || 0;
-      var serials = splitSerials(data.serials);
-      if(!itemId){ msg.textContent = "Pick an item from the inventory list."; msg.className = "formmsg err"; return false; }
-      if(qty < 1){ msg.textContent = "Quantity must be at least 1."; msg.className = "formmsg err"; return false; }
-      if(serials.length !== qty){ msg.textContent = "Serial numbers required: enter exactly "+qty+" serial number(s)."; msg.className = "formmsg err"; return false; }
+      var lines = readLines("testLines", msg);
+      if(!lines) return false;
 
       var wasEditing = editingTestId;
       var old = wasEditing ? state.testRequests.find(function(t){ return t.id === wasEditing; }) : null;
       var oldLines = old ? getLines(old) : [];
-      var givenBack = 0;
-      oldLines.forEach(function(ol){ if(ol.itemId === itemId) givenBack += parseInt(ol.qty,10)||0; });
-      var available = itemStock(itemId) + givenBack;
-      if(qty > available){ msg.textContent = "Only "+available+" of "+itemLabelOf(itemId)+" available — reduce the quantity."; msg.className = "formmsg err"; return false; }
+
+      // Same serial already on another request (or twice in this one)? Stop before touching stock.
+      var conflict = findTestSerialConflict(lines, wasEditing);
+      if(conflict){ msg.textContent = conflict; msg.className = "formmsg err"; return false; }
+
+      // Availability is checked per item in total, since the same item can appear on more than one line.
+      var wanted = {}, givenBack = {};
+      lines.forEach(function(l){ wanted[l.itemId] = (wanted[l.itemId]||0) + l.qty; });
+      oldLines.forEach(function(ol){ givenBack[ol.itemId] = (givenBack[ol.itemId]||0) + (parseInt(ol.qty,10)||0); });
+      var ids = Object.keys(wanted);
+      for(var wi=0; wi<ids.length; wi++){
+        var available = itemStock(ids[wi]) + (givenBack[ids[wi]]||0);
+        if(wanted[ids[wi]] > available){ msg.textContent = "Only "+available+" of "+itemLabelOf(ids[wi])+" available — reduce the quantity."; msg.className = "formmsg err"; return false; }
+      }
 
       if(old){
         for(var oi=0; oi<oldLines.length; oi++){
           await adjustStock(oldLines[oi].itemId, (parseInt(oldLines[oi].qty,10)||0), oldLines[oi].serials||[], []);
         }
       }
-      await adjustStock(itemId, -qty, [], serials);
+      var resolved = [];
+      for(var li=0; li<lines.length; li++){
+        await adjustStock(lines[li].itemId, -lines[li].qty, [], lines[li].serials);
+        resolved.push({itemId:lines[li].itemId, itemLabel:itemLabelOf(lines[li].itemId), qty:lines[li].qty, serials:lines[li].serials});
+      }
 
       var now = new Date().toISOString();
       var payload = {
         requestDate:data.date, customer:data.customer.trim(), po:(data.po||"").trim(),
-        lines:[{itemId:itemId, itemLabel:itemLabelOf(itemId), qty:qty, serials:serials}],
+        lines:resolved,
         updatedAt:now
       };
       if(old){
@@ -1959,6 +1998,7 @@
         payload.createdAt = now;
         await db.collection("test_requests").add(payload);
       }
+      resetLines("testLines");
     });
 
     applyRoute();

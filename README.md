@@ -90,7 +90,12 @@ units out on trial with a customer. Records live in a `test_requests`
 Firestore collection — no extra setup, the existing rules already cover it.
 
 - **Filing** takes the units out of stock immediately, like a check-out.
-  "Requested by" is the signed-in email.
+  "Requested by" is the signed-in email. Like the check-out form, a request
+  can be a **single item** or **multiple items** (several units/models under
+  one customer and PO/RFQ). Items come from the inventory list only.
+- **No duplicates:** a serial number that's already on another request
+  (On going, Passed, or Checked out) can't be requested again, and the same
+  serial can't appear twice in one request. Returned units are free again.
 - **Statuses:** On going → **Passed** or **Returned**.
 - **Passed** units show a *Proceed to check out* button, which opens the
   Delivery Tracker form pre-filled. Stock is *not* deducted a second time
