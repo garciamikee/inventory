@@ -549,7 +549,7 @@
             <div class="formgrid">
               <div class="field"><label>Request date</label><input name="date" type="date" required></div>
               <div class="field"><label>Customer name</label><input name="customer" required placeholder="e.g. Infinivan"></div>
-              <div class="field"><label>Reference (attachment)</label><input id="testReference" name="reference" type="file" required accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg"><div class="hint" id="testReferenceHint" style="font-size:11.5px;color:var(--muted);margin-top:4px;">Required. Emailed to mg@1wan.ph when you file. Max 3 MB.</div></div>
+              <div class="field"><label>Reference (attachment)</label><input id="testReference" name="reference" type="file" required accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg"><div class="hint" id="testReferenceHint" style="font-size:11.5px;color:var(--muted);margin-top:4px;">Required.</div></div>
               <div class="field"><label>Requested by</label><input id="testRequestedBy" readonly placeholder="Your sign-in email"></div>
             </div>
             <div style="margin:14px 0 8px;">
@@ -737,7 +737,7 @@
 
         <div class="flow-label" data-for="after" style="display:none;">Units out for testing &amp; returns</div>
         <div class="flow" id="flowAfterTest" style="display:none;">
-          <div class="flow-step"><div class="k">T1</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck: date, customer, a required reference attachment (emailed to mg@1wan.ph), items with serials. Requester = signed-in email.</p></div>
+          <div class="flow-step"><div class="k">T1</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck: date, customer, a required reference attachment, items with serials. Requester = signed-in email.</p></div>
           <div class="flow-arrow">→</div>
           <div class="flow-step fix"><div class="k">T2 · fixed</div><h3>Stock deducted at once</h3><p>Treated as a check-out. Serials already on a request are refused, and the Deck lists all requests to avoid duplicates.</p></div>
           <div class="flow-arrow">→</div>
@@ -950,42 +950,14 @@
     return u && u.email ? u.email : "";
   }
 
-  // The reference attachment is emailed to mg@1wan.ph by a serverless function (api/send-reference.js);
-  // the recipient is fixed on the server. The file itself isn't stored — only its name is kept on the request.
-  var REFERENCE_MAX_BYTES = 3 * 1024 * 1024;
+  // The reference is a required attachment. The file itself isn't stored — only its name is kept on the request.
   var REFERENCE_EXTS = ["pdf","png","jpg","jpeg","doc","docx","xls","xlsx","csv","txt","eml","msg"];
-  var REFERENCE_ENDPOINT = "/api/send-reference";
   function checkReferenceFile(file){
     if(!file) return "Attach the reference file — it's required.";
     var ext = file.name.indexOf(".") > -1 ? file.name.split(".").pop().toLowerCase() : "";
     if(REFERENCE_EXTS.indexOf(ext) < 0) return "That file type isn't allowed. Use PDF, image, Word, Excel, CSV, text or email files.";
-    if(file.size > REFERENCE_MAX_BYTES) return "Attachment is too large — 3 MB max.";
     if(file.size === 0) return "That file is empty.";
     return "";
-  }
-  function readFileBase64(file){
-    return new Promise(function(resolve, reject){
-      var fr = new FileReader();
-      fr.onload = function(){ resolve(String(fr.result).split(",")[1] || ""); };
-      fr.onerror = function(){ reject(new Error("Couldn't read the attachment.")); };
-      fr.readAsDataURL(file);
-    });
-  }
-  async function emailReference(file, details){
-    var u = window.__appAuth && window.__appAuth.currentUser;
-    if(!u || !u.getIdToken) throw new Error("Not signed in — sign in again and retry.");
-    var token = await u.getIdToken();
-    var content = await readFileBase64(file);
-    var resp;
-    try{
-      resp = await fetch(REFERENCE_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-        body: JSON.stringify({ filename: file.name, content: content, requestDate: details.requestDate, customer: details.customer, items: details.items })
-      });
-    }catch(e){ throw new Error("Couldn't reach the email service — check your connection and retry."); }
-    var j = {}; try{ j = await resp.json(); }catch(e){}
-    if(!resp.ok) throw new Error(j.error || "Couldn't email the attachment (error " + resp.status + ").");
   }
   function testPill(r){
     if(r.deliveryId) return '<span class="pill accentpill">Checked out</span>';
@@ -1764,7 +1736,7 @@
       document.getElementById("testingFormSubmit").textContent = "File request";
       document.getElementById("testingFormCancel").hidden = true;
       document.getElementById("testReference").required = true;
-      document.getElementById("testReferenceHint").textContent = "Required. Emailed to mg@1wan.ph when you file. Max 3 MB.";
+      document.getElementById("testReferenceHint").textContent = "Required.";
     }
     document.getElementById("testingFormCancel").addEventListener("click", function(){
       exitTestEdit();
@@ -1784,7 +1756,7 @@
       form.elements.customer.value = rec.customer||"";
       form.elements.reference.value = "";
       form.elements.reference.required = false;
-      document.getElementById("testReferenceHint").textContent = "Current: " + (rec.po || "none") + ". Leave empty to keep it, or choose a new file to replace it (it will be emailed to mg@1wan.ph again).";
+      document.getElementById("testReferenceHint").textContent = "Current: " + (rec.po || "none") + ". Leave empty to keep it, or choose a new file to replace it.";
       fillLinesFor("testLines", lines);
       setSegMode("testModeToggle","testAddLine","testLines", lines.length>1?"multi":"single", function(m){testMode=m;});
       document.getElementById("testRequestedBy").value = rec.requestedBy||"";
@@ -2237,23 +2209,12 @@
         if(wanted[ids[wi]] > available){ msg.textContent = "Only "+available+" of "+itemLabelOf(ids[wi])+" available — reduce the quantity."; msg.className = "formmsg err"; return false; }
       }
 
-      // The reference attachment is required for a new request (optional when editing). It is emailed
-      // BEFORE any stock moves, so if the email fails nothing is filed and no units are deducted.
+      // The reference attachment is required for a new request (optional when editing, where choosing a
+      // new file just replaces the reference). Only the file name is kept on the request.
       var refFile = document.getElementById("testReference").files[0] || null;
       if(refFile || !old){
         var refProblem = checkReferenceFile(refFile);
         if(refProblem){ msg.textContent = refProblem; msg.className = "formmsg err"; return false; }
-        msg.textContent = "Emailing the attachment to mg@1wan.ph…"; msg.className = "formmsg";
-        try{
-          await emailReference(refFile, {
-            requestDate: data.date, customer: data.customer.trim(),
-            items: lines.map(function(l){ return { item: itemLabelOf(l.itemId), qty: l.qty, serials: l.serials.join(", ") }; })
-          });
-        }catch(err){
-          var why = err && err.message ? err.message : "the attachment couldn't be emailed"; msg.textContent = "Not filed — " + why.replace(/[.!?]?$/, ".") + " Nothing was deducted from stock.";
-          msg.className = "formmsg err";
-          return false;
-        }
       }
 
       if(old){
@@ -2274,7 +2235,7 @@
         updatedAt:now
       };
       // "po" holds the Reference — now the attached file's name (older requests keep their typed PO/RFQ no.).
-      if(refFile){ payload.po = refFile.name; payload.referenceEmailedTo = "mg@1wan.ph"; payload.referenceEmailedAt = now; }
+      if(refFile){ payload.po = refFile.name; }
       if(old){
         await db.doc("test_requests/"+wasEditing).update(payload);
         exitTestEdit();

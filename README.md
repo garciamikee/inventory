@@ -95,12 +95,10 @@ Firestore collection — no extra setup, the existing rules already cover it.
   one customer and PO/RFQ). Items come from the inventory list only.
 - **Reference attachment (required):** instead of a typed PO/RFQ number, the
   request needs a **Reference** file (PDF, image, Word, Excel, CSV, text or
-  email file, max 3 MB). It is **emailed to mg@1wan.ph** the moment the request
-  is filed, together with the customer, items, serials and who filed it. The
-  email is sent first — if it fails, nothing is filed and no stock is
-  deducted. Only the file's name is kept on the request (the file itself isn't
-  stored). When editing a request the attachment is optional; choosing a new
-  file replaces the reference and emails it again.
+  email file). The request can't be filed without it. Only the file's name is
+  kept on the request — the file itself isn't stored or sent anywhere. When
+  editing a request the attachment is optional; choosing a new file replaces
+  the reference name.
 - **No duplicates:** a serial number that's already on another request
   (On going, Passed, or Checked out) can't be requested again, and the same
   serial can't appear twice in one request. Returned units are free again.
@@ -115,25 +113,6 @@ Firestore collection — no extra setup, the existing rules already cover it.
   the "Internal testing" purpose).
 
 
-## One-time setup: emailing the Reference attachment
-
-Emailing needs a server, so it runs as a Vercel serverless function
-(`api/send-reference.js`, deployed automatically with this repo). The
-recipient (mg@1wan.ph) is fixed in that function, and it only accepts calls
-from signed-in `@1wan.ph` accounts of this Firebase project. The Viewing Deck
-calls this same function, so it only needs setting up here.
-
-1. Create a free account at https://resend.com and make an API key.
-2. In Vercel → this project (inventory) → **Settings → Environment Variables**,
-   add `RESEND_API_KEY` = that key, then **redeploy**.
-3. Until you verify a domain in Resend, mail goes out from Resend's shared
-   sender, which can only deliver to the address the Resend account was
-   created with — so sign up with **mg@1wan.ph**. To send from your own
-   address instead, verify `1wan.ph` in Resend and also add
-   `MAIL_FROM` = `Inventory-Logistics System <noreply@1wan.ph>`.
-
-Without the key, filing a request shows "Email isn't set up yet" and files
-nothing.
 
 ## Return Units (Warehouse Log)
 
