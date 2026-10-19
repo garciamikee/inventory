@@ -549,7 +549,7 @@
             <div class="formgrid">
               <div class="field"><label>Request date</label><input name="date" type="date" required></div>
               <div class="field"><label>Customer name</label><input name="customer" required placeholder="e.g. Infinivan"></div>
-              <div class="field"><label>Reference (attachment)</label><input id="testReference" name="reference" type="file" required accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg"><div class="hint" id="testReferenceHint" style="font-size:11.5px;color:var(--muted);margin-top:4px;">Required.</div></div>
+              <div class="field"><label>Reference (attachment)</label><input id="testReference" name="reference" type="file" required accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg"><div class="hint" id="testReferenceHint" style="font-size:11.5px;color:var(--muted);margin-top:4px;">Required. Name the file after the PO/RFQ no. (e.g. RFQ-2026-014.pdf). Max 3 MB.</div></div>
               <div class="field"><label>Requested by</label><input id="testRequestedBy" readonly placeholder="Your sign-in email"></div>
             </div>
             <div style="margin:14px 0 8px;">
@@ -737,7 +737,7 @@
 
         <div class="flow-label" data-for="after" style="display:none;">Units out for testing &amp; returns</div>
         <div class="flow" id="flowAfterTest" style="display:none;">
-          <div class="flow-step"><div class="k">T1</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck: date, customer, a required reference attachment, items with serials. Requester = signed-in email.</p></div>
+          <div class="flow-step"><div class="k">T1</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck: date, customer, a required reference file (named after the PO/RFQ no.; downloaded once in the main system, then removed), items with serials. Requester = signed-in email.</p></div>
           <div class="flow-arrow">→</div>
           <div class="flow-step fix"><div class="k">T2 · fixed</div><h3>Stock deducted at once</h3><p>Treated as a check-out. Serials already on a request are refused, and the Deck lists all requests to avoid duplicates.</p></div>
           <div class="flow-arrow">→</div>
@@ -950,14 +950,51 @@
     return u && u.email ? u.email : "";
   }
 
-  // The reference is a required attachment. The file itself isn't stored — only its name is kept on the request.
+  // ---- Reference attachment ----
+  // The requestor uploads a file named after the PO/RFQ no.; Reference shows that number (file name
+  // without its extension). The file is kept in Firestore in small chunks (request_files) only until
+  // someone downloads it once from the main system — the download removes it to save space.
+  var REFERENCE_MAX_BYTES = 3 * 1024 * 1024;
+  var REFERENCE_HINT = "Required. Name the file after the PO/RFQ no. (e.g. RFQ-2026-014.pdf). Max 3 MB.";
+  var REFERENCE_CHUNK = 700000; // base64 characters per document (Firestore's limit is ~1 MiB)
   var REFERENCE_EXTS = ["pdf","png","jpg","jpeg","doc","docx","xls","xlsx","csv","txt","eml","msg"];
+  function referenceNumber(fileName){ return String(fileName||"").replace(/\.[^.]+$/, "").trim(); }
   function checkReferenceFile(file){
     if(!file) return "Attach the reference file — it's required.";
     var ext = file.name.indexOf(".") > -1 ? file.name.split(".").pop().toLowerCase() : "";
     if(REFERENCE_EXTS.indexOf(ext) < 0) return "That file type isn't allowed. Use PDF, image, Word, Excel, CSV, text or email files.";
     if(file.size === 0) return "That file is empty.";
+    if(file.size > REFERENCE_MAX_BYTES) return "Attachment is too large — 3 MB max.";
+    if(!referenceNumber(file.name)) return "Name the file after the PO/RFQ no. (e.g. RFQ-2026-014.pdf).";
     return "";
+  }
+  function readFileBase64(file){
+    return new Promise(function(resolve, reject){
+      var fr = new FileReader();
+      fr.onload = function(){ resolve(String(fr.result).split(",")[1] || ""); };
+      fr.onerror = function(){ reject(new Error("Couldn't read the attachment.")); };
+      fr.readAsDataURL(file);
+    });
+  }
+  async function deleteAttachment(id, chunks){
+    for(var i=0;i<(chunks||0);i++){
+      try{ await db.doc("request_files/"+id+"_"+i).delete(); }catch(e){ /* best effort */ }
+    }
+  }
+  // Stores the file and returns the fields to put on the request record.
+  async function saveAttachment(file){
+    var b64 = await readFileBase64(file);
+    var id = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+    var chunks = Math.max(1, Math.ceil(b64.length / REFERENCE_CHUNK));
+    try{
+      for(var i=0;i<chunks;i++){
+        await db.doc("request_files/"+id+"_"+i).set({ data: b64.slice(i*REFERENCE_CHUNK, (i+1)*REFERENCE_CHUNK), index: i, createdAt: new Date().toISOString() });
+      }
+    }catch(e){
+      await deleteAttachment(id, chunks);
+      throw new Error("Couldn't upload the attachment — try again.");
+    }
+    return { attachmentId:id, attachmentChunks:chunks, attachmentName:file.name, attachmentType:file.type||"application/octet-stream", attachmentSize:file.size };
   }
   function testPill(r){
     if(r.deliveryId) return '<span class="pill accentpill">Checked out</span>';
@@ -1208,6 +1245,8 @@
         btns += '<button type="button" class="btn ghost small" data-test-set="Returned" data-test-id="'+esc(r.id)+'">Mark Returned</button>';
       }
     }
+    if(r.attachmentId) btns += '<button type="button" class="btn small" data-test-download="'+esc(r.id)+'">Download file</button>';
+    else if(r.attachmentRemovedAt) btns += '<span class="pill neutral" title="Downloaded once and removed from storage">File downloaded</span>';
     btns += '<button type="button" class="btn ghost small" data-del-kind="test" data-del-id="'+esc(r.id)+'" style="color:var(--bad);border-color:var(--bad);">Delete</button>';
     return '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+btns+'</div>';
   }
@@ -1736,7 +1775,7 @@
       document.getElementById("testingFormSubmit").textContent = "File request";
       document.getElementById("testingFormCancel").hidden = true;
       document.getElementById("testReference").required = true;
-      document.getElementById("testReferenceHint").textContent = "Required.";
+      document.getElementById("testReferenceHint").textContent = REFERENCE_HINT;
     }
     document.getElementById("testingFormCancel").addEventListener("click", function(){
       exitTestEdit();
@@ -1756,7 +1795,7 @@
       form.elements.customer.value = rec.customer||"";
       form.elements.reference.value = "";
       form.elements.reference.required = false;
-      document.getElementById("testReferenceHint").textContent = "Current: " + (rec.po || "none") + ". Leave empty to keep it, or choose a new file to replace it.";
+      document.getElementById("testReferenceHint").textContent = "Current reference: " + (rec.po || "none") + (rec.attachmentId ? " (file waiting to be downloaded)" : " (no file on record)") + ". Leave empty to keep it, or choose a new file to replace it.";
       fillLinesFor("testLines", lines);
       setSegMode("testModeToggle","testAddLine","testLines", lines.length>1?"multi":"single", function(m){testMode=m;});
       document.getElementById("testRequestedBy").value = rec.requestedBy||"";
@@ -1790,6 +1829,33 @@
       }catch(err){ alertDialog("Couldn't update: " + (err && err.message ? err.message : "try again.")); }
     }
 
+    // One-time download: the file is read, saved to the user's computer, then removed from the database.
+    async function downloadTestFile(id){
+      if(!db) return;
+      var snap = await db.doc("test_requests/"+id).get();
+      var rec = snap.exists ? snap.data() : null;
+      if(!rec || !rec.attachmentId){ alertDialog("This file has already been downloaded and removed."); return; }
+      var ok = await showModal("Download "+rec.attachmentName+"?\nIt can only be downloaded once — the file is removed from the system afterwards, so keep your copy.", {yesLabel:"Download", yesColor:"var(--accent)"});
+      if(!ok) return;
+      try{
+        var parts = [];
+        for(var i=0;i<rec.attachmentChunks;i++){
+          var c = await db.doc("request_files/"+rec.attachmentId+"_"+i).get();
+          if(!c.exists) throw new Error("The file is incomplete or was already removed.");
+          parts.push(c.data().data);
+        }
+        var bin = atob(parts.join("")), bytes = new Uint8Array(bin.length);
+        for(var b=0;b<bin.length;b++) bytes[b] = bin.charCodeAt(b);
+        var url = URL.createObjectURL(new Blob([bytes], {type: rec.attachmentType || "application/octet-stream"}));
+        var a = document.createElement("a");
+        a.href = url; a.download = rec.attachmentName || "attachment";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+        await deleteAttachment(rec.attachmentId, rec.attachmentChunks);
+        await db.doc("test_requests/"+id).update({ attachmentId:"", attachmentChunks:0, attachmentRemovedAt:new Date().toISOString(), attachmentDownloadedBy:currentUserEmail(), updatedAt:new Date().toISOString() });
+      }catch(err){ alertDialog("Couldn't download: " + (err && err.message ? err.message : "try again.")); }
+    }
+
     async function deleteTestRow(id){
       var rec = state.testRequests.find(function(t){ return t.id === id; });
       if(!rec || !db) return;
@@ -1810,6 +1876,7 @@
           // The delivery becomes an ordinary one, so deleting/editing it later handles stock normally.
           try{ await db.doc("deliveries/"+rec.deliveryId).update({fromTestRequestId:""}); }catch(e){ /* delivery already gone */ }
         }
+        if(rec.attachmentId) await deleteAttachment(rec.attachmentId, rec.attachmentChunks);
         await db.doc("test_requests/"+id).delete();
       }catch(err){ alertDialog("Couldn't delete: " + (err && err.message ? err.message : "try again.")); }
     }
@@ -1851,6 +1918,8 @@
       var goBtn = e.target.closest("[data-test-proceed]");
       var editBtn = e.target.closest("[data-edit-kind]");
       var delBtn = e.target.closest("[data-del-kind]");
+      var dlBtn = e.target.closest("[data-test-download]");
+      if(dlBtn) downloadTestFile(dlBtn.dataset.testDownload);
       if(setBtn) setTestStatus(setBtn.dataset.testId, setBtn.dataset.testSet);
       if(goBtn) proceedToCheckout(state.testRequests.find(function(t){ return t.id === goBtn.dataset.testProceed; }));
       if(editBtn){ var rec = state.testRequests.find(function(t){ return t.id === editBtn.dataset.editId; }); if(rec) openTestEdit(rec); }
@@ -2210,11 +2279,15 @@
       }
 
       // The reference attachment is required for a new request (optional when editing, where choosing a
-      // new file just replaces the reference). Only the file name is kept on the request.
+      // new file replaces the old one). It is uploaded before any stock moves.
       var refFile = document.getElementById("testReference").files[0] || null;
+      var attach = null;
       if(refFile || !old){
         var refProblem = checkReferenceFile(refFile);
         if(refProblem){ msg.textContent = refProblem; msg.className = "formmsg err"; return false; }
+        msg.textContent = "Uploading the attachment…"; msg.className = "formmsg";
+        try{ attach = await saveAttachment(refFile); }
+        catch(err){ msg.textContent = err.message; msg.className = "formmsg err"; return false; }
       }
 
       if(old){
@@ -2234,18 +2307,24 @@
         lines:resolved,
         updatedAt:now
       };
-      // "po" holds the Reference — now the attached file's name (older requests keep their typed PO/RFQ no.).
-      if(refFile){ payload.po = refFile.name; }
-      if(old){
-        await db.doc("test_requests/"+wasEditing).update(payload);
-        exitTestEdit();
-      } else {
-        payload.requestedBy = email;
-        payload.status = "On going";
-        payload.statusHistory = [{status:"On going", at:now}];
-        payload.deliveryId = "";
-        payload.createdAt = now;
-        await db.collection("test_requests").add(payload);
+      // "po" holds the Reference: the PO/RFQ no. taken from the file name (older requests keep what was typed).
+      if(attach){ payload.po = referenceNumber(refFile.name); Object.assign(payload, attach); payload.attachmentRemovedAt = ""; payload.attachmentDownloadedBy = ""; }
+      try{
+        if(old){
+          await db.doc("test_requests/"+wasEditing).update(payload);
+          if(attach && old.attachmentId) await deleteAttachment(old.attachmentId, old.attachmentChunks);
+          exitTestEdit();
+        } else {
+          payload.requestedBy = email;
+          payload.status = "On going";
+          payload.statusHistory = [{status:"On going", at:now}];
+          payload.deliveryId = "";
+          payload.createdAt = now;
+          await db.collection("test_requests").add(payload);
+        }
+      }catch(err){
+        if(attach) await deleteAttachment(attach.attachmentId, attach.attachmentChunks);
+        throw err;
       }
       resetLines("testLines");
     });

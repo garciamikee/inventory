@@ -93,12 +93,18 @@ Firestore collection — no extra setup, the existing rules already cover it.
   "Requested by" is the signed-in email. Like the check-out form, a request
   can be a **single item** or **multiple items** (several units/models under
   one customer and PO/RFQ). Items come from the inventory list only.
-- **Reference attachment (required):** instead of a typed PO/RFQ number, the
-  request needs a **Reference** file (PDF, image, Word, Excel, CSV, text or
-  email file). The request can't be filed without it. Only the file's name is
-  kept on the request — the file itself isn't stored or sent anywhere. When
-  editing a request the attachment is optional; choosing a new file replaces
-  the reference name.
+- **Reference attachment (required):** the request needs a **Reference** file
+  (PDF, image, Word, Excel, CSV, text or email file, max 3 MB). Name the file
+  after the PO/RFQ no. (e.g. `RFQ-2026-014.pdf`) — the **Reference** column
+  shows just that number (the file name without its extension).
+- **Download once, then it's removed:** the uploaded file is kept in the
+  database (`request_files` collection, split into small pieces) only until
+  someone clicks **Download file** on that request in the main system. After
+  that one download the file is deleted to save space and the request shows
+  "File downloaded"; the Reference number stays. The Viewing Deck can upload
+  but not download. Deleting a request also deletes a file that's still
+  waiting. When editing a request the attachment is optional; choosing a new
+  file replaces the Reference and the waiting file.
 - **No duplicates:** a serial number that's already on another request
   (On going, Passed, or Checked out) can't be requested again, and the same
   serial can't appear twice in one request. Returned units are free again.
