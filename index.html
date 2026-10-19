@@ -712,11 +712,13 @@
         <div class="flow" id="flowBeforeTest">
           <div class="flow-step"><div class="k">T1</div><h3>Customer asks for a trial</h3><p>Requested by chat or email; nothing is filed.</p></div>
           <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">T2 · gap</div><h3>Units not deducted</h3><p>Stock count still shows the trial units as available.</p></div>
+          <div class="flow-step flag"><div class="k">T2 · gap</div><h3>PO/RFQ paperwork scattered</h3><p>The document sits in someone's inbox or chat; the number is retyped or lost.</p></div>
           <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">T3 · gap</div><h3>Duplicate requests</h3><p>No shared list, so two people can promise the same unit.</p></div>
+          <div class="flow-step flag"><div class="k">T3 · gap</div><h3>Units not deducted</h3><p>Stock count still shows the trial units as available.</p></div>
           <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">T4 · gap</div><h3>Unused units forgotten</h3><p>Units that come back are added to the count late, or never.</p></div>
+          <div class="flow-step flag"><div class="k">T4 · gap</div><h3>Duplicate requests</h3><p>No shared list, so two people can promise the same unit.</p></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step flag"><div class="k">T5 · gap</div><h3>Unused units forgotten</h3><p>Units that come back are added to the count late, or never.</p></div>
         </div>
 
         <div class="flow" id="flowAfter" style="display:none;">
@@ -737,17 +739,21 @@
 
         <div class="flow-label" data-for="after" style="display:none;">Units out for testing &amp; returns</div>
         <div class="flow" id="flowAfterTest" style="display:none;">
-          <div class="flow-step"><div class="k">T1</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck: date, customer, a required reference file (named after the PO/RFQ no.; downloaded once in the main system, then removed), items with serials. Requester = signed-in email.</p></div>
+          <div class="flow-step"><div class="k">T1</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck: date, customer, and items with serials (single or multiple). Requester = signed-in email.</p></div>
           <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T2 · fixed</div><h3>Stock deducted at once</h3><p>Treated as a check-out. Serials already on a request are refused, and the Deck lists all requests to avoid duplicates.</p></div>
+          <div class="flow-step fix"><div class="k">T2 · fixed</div><h3>Reference file required</h3><p>The PO/RFQ document must be uploaded, named after its number. <i>Reference</i> shows just that number (e.g. RFQ-2026-014).</p></div>
           <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">T3</div><h3>On going</h3><p>Counted under <i>Units out for testing</i> on the Overview.</p></div>
+          <div class="flow-step fix"><div class="k">T3 · fixed</div><h3>Stock deducted at once</h3><p>Treated as a check-out. Serials already on a request are refused, and the Deck lists all requests to avoid duplicates.</p></div>
           <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T4a · Passed</div><h3>Proceed to check out</h3><p>Opens the Delivery Tracker form pre-filled; joins step 05–07 above. Stock is not deducted a second time.</p></div>
+          <div class="flow-step fix"><div class="k">T4 · fixed</div><h3>Download once, then removed</h3><p>In the main system the file is downloaded one time and then deleted, so storage doesn't pile up. The Reference number stays on the request.</p></div>
           <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T4b · Returned</div><h3>Units go back to stock</h3><p>Setting a request to Returned restores the count and serials in the Inventory List.</p></div>
+          <div class="flow-step"><div class="k">T5</div><h3>On going</h3><p>Counted under <i>Units out for testing</i> on the Overview.</p></div>
           <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T5 · Return units</div><h3>Unused units come back</h3><p>Warehouse Log → Return units: item, quantity and serials are added back to stock and logged under Returned units.</p></div>
+          <div class="flow-step fix"><div class="k">T6a · Passed</div><h3>Proceed to check out</h3><p>Opens the Delivery Tracker form pre-filled; joins step 05–07 above. Stock is not deducted a second time.</p></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step fix"><div class="k">T6b · Returned</div><h3>Units go back to stock</h3><p>Setting a request to Returned restores the count and serials in the Inventory List.</p></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step fix"><div class="k">T7 · Return units</div><h3>Unused units come back</h3><p>Warehouse Log → Return units: item, quantity and serials are added back to stock and logged under Returned units.</p></div>
         </div>
 
         <div class="note">
