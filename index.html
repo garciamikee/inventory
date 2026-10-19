@@ -259,7 +259,8 @@
   .flow-step .k{ font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); font-weight:700; }
   .flow-step h3{ font-size:14px; margin:5px 0 5px; }
   .flow-step p{ font-size:12px; color:var(--muted); margin:0; line-height:1.45; }
-  .flow-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; margin:18px 0 4px; }
+  .flow-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; margin:6px 0 4px; }
+  .flow-down{ text-align:center; color:var(--faint); font-size:18px; line-height:1; margin:2px 0 12px; }
   .flow-arrow{ display:flex; align-items:center; justify-content:center; width:34px; flex:none; color:var(--faint); font-size:18px; }
   .flow-step.flag{ border-color:var(--bad); } .flow-step.flag .k{ color:var(--bad); }
   .flow-step.fix{ border-color:var(--good); } .flow-step.fix .k{ color:var(--good); }
@@ -685,79 +686,73 @@
 
       <!-- FLOW -->
       <section class="view" id="view-flow">
-        <p class="lede">The seven steps from supplier to customer, plus the trial and returns path below them — shown as it ran on paper/spreadsheets, and as it runs now that check-out, testing, returns and inventory share one live record.</p>
+        <p class="lede">The whole journey in order — supplier ships, warehouse check-in, request for testing, check-out, delivery, customer received — shown as it ran on paper/spreadsheets, and as it runs now that check-in, testing, returns, check-out and delivery share one live record.</p>
 
         <div class="flow-toggle" role="tablist" aria-label="Process state">
           <button data-mode="before" aria-pressed="true">Before</button>
           <button data-mode="after" aria-pressed="false">With this system</button>
         </div>
 
-        <div class="flow" id="flowBefore">
-          <div class="flow-step"><div class="k">01</div><h3>Supplier ships</h3><p>PO placed, courier tracking no. issued.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">02</div><h3>Warehouse check-in</h3><p>Received, serials logged in a spreadsheet.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">03</div><h3>Inventory List updated</h3><p>Someone manually adds the stock count later.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">04</div><h3>Order &amp; check-out</h3><p>Item pulled and handed to courier for delivery.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">05 · gap</div><h3>Inventory not yet reduced</h3><p>Stock count still shows the item as available.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">06 · gap</div><h3>Delivery status untracked</h3><p>No record of in-transit; updated only when someone remembers.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">07</div><h3>Customer receives</h3><p>Confirmed informally, days after the fact.</p></div>
+        <div class="flow-wrap" id="flowBefore">
+          <div class="flow-label">A · Supplier to warehouse</div>
+          <div class="flow">
+            <div class="flow-step"><div class="k">01</div><h3>Supplier ships</h3><p>PO placed, courier tracking no. issued.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="k">02</div><h3>Warehouse check-in</h3><p>Received, serials logged in a spreadsheet.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step flag"><div class="k">03 · gap</div><h3>Inventory List updated later</h3><p>Someone manually adds the stock count after the fact.</p></div>
+          </div>
+          <div class="flow-down">↓</div>
+          <div class="flow-label">B · Request for testing (when a customer wants a trial)</div>
+          <div class="flow">
+            <div class="flow-step flag"><div class="k">04 · gap</div><h3>Trial requested by chat</h3><p>Nothing is filed. The PO/RFQ paperwork sits in an inbox, units aren't deducted, and two people can promise the same unit.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step flag"><div class="k">05 · gap</div><h3>Trial outcome untracked</h3><p>Passed or returned is remembered, not recorded. Unused units are added back late, or never.</p></div>
+          </div>
+          <div class="flow-down">↓</div>
+          <div class="flow-label">C · Check-out to customer</div>
+          <div class="flow">
+            <div class="flow-step"><div class="k">06</div><h3>Order &amp; check-out</h3><p>Item pulled and handed to courier for delivery.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step flag"><div class="k">07 · gap</div><h3>Inventory not yet reduced</h3><p>Stock count still shows the item as available.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step flag"><div class="k">08 · gap</div><h3>Delivery status untracked</h3><p>No record of in-transit; updated only when someone remembers.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="k">09</div><h3>Customer receives</h3><p>Confirmed informally, days after the fact.</p></div>
+          </div>
         </div>
 
-        <div class="flow-label" data-for="before">Units out for testing &amp; returns</div>
-        <div class="flow" id="flowBeforeTest">
-          <div class="flow-step"><div class="k">T1</div><h3>Customer asks for a trial</h3><p>Requested by chat or email; nothing is filed.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">T2 · gap</div><h3>PO/RFQ paperwork scattered</h3><p>The document sits in someone's inbox or chat; the number is retyped or lost.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">T3 · gap</div><h3>Units not deducted</h3><p>Stock count still shows the trial units as available.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">T4 · gap</div><h3>Duplicate requests</h3><p>No shared list, so two people can promise the same unit.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step flag"><div class="k">T5 · gap</div><h3>Unused units forgotten</h3><p>Units that come back are added to the count late, or never.</p></div>
-        </div>
-
-        <div class="flow" id="flowAfter" style="display:none;">
-          <div class="flow-step"><div class="k">01</div><h3>Supplier ships</h3><p>PO placed, courier tracking no. issued.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">02</div><h3>Warehouse check-in</h3><p>Logged with serial numbers, single item or a whole assorted shipment at once.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">03 · fixed</div><h3>Inventory updates itself</h3><p>Stock and serial numbers reflect the check-in instantly, for everyone.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">04</div><h3>Order &amp; check-out</h3><p>Item pulled, serials logged out, purpose recorded.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Inventory decrements immediately</h3><p>Available count drops the moment it's checked out — not after delivery.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">06 · fixed</div><h3>Delivery tracked live</h3><p>For delivery → In transit → Delivered, one click each, visible to the whole team.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">07</div><h3>Customer receives</h3><p>Marked delivered on confirmation — closing the loop same-day.</p></div>
-        </div>
-
-        <div class="flow-label" data-for="after" style="display:none;">Units out for testing &amp; returns</div>
-        <div class="flow" id="flowAfterTest" style="display:none;">
-          <div class="flow-step"><div class="k">T1</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck: date, customer, and items with serials (single or multiple). Requester = signed-in email.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T2 · fixed</div><h3>Reference file required</h3><p>The PO/RFQ document must be uploaded, named after its number. <i>Reference</i> shows just that number (e.g. RFQ-2026-014).</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T3 · fixed</div><h3>Stock deducted at once</h3><p>Treated as a check-out. Serials already on a request are refused, and the Deck lists all requests to avoid duplicates.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T4 · fixed</div><h3>Download once, then removed</h3><p>In the main system the file is downloaded one time and then deleted, so storage doesn't pile up. The Reference number stays on the request.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step"><div class="k">T5</div><h3>On going</h3><p>Counted under <i>Units out for testing</i> on the Overview.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T6a · Passed</div><h3>Proceed to check out</h3><p>Opens the Delivery Tracker form pre-filled; joins step 05–07 above. Stock is not deducted a second time.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T6b · Returned</div><h3>Units go back to stock</h3><p>Setting a request to Returned restores the count and serials in the Inventory List.</p></div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-step fix"><div class="k">T7 · Return units</div><h3>Unused units come back</h3><p>Warehouse Log → Return units: item, quantity and serials are added back to stock and logged under Returned units.</p></div>
+        <div class="flow-wrap" id="flowAfter" style="display:none;">
+          <div class="flow-label">A · Supplier to warehouse</div>
+          <div class="flow">
+            <div class="flow-step"><div class="k">01</div><h3>Supplier ships</h3><p>PO placed, courier tracking no. issued.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="k">02</div><h3>Warehouse check-in</h3><p>Logged with serial numbers, single item or a whole assorted shipment, new products added on the spot.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step fix"><div class="k">03 · fixed</div><h3>Inventory updates itself</h3><p>Stock and serial numbers reflect the check-in instantly, for everyone.</p></div>
+          </div>
+          <div class="flow-down">↓</div>
+          <div class="flow-label">B · Request for testing (when a customer wants a trial)</div>
+          <div class="flow">
+            <div class="flow-step fix"><div class="k">04 · fixed</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck with items and serials. A reference file named after the PO/RFQ no. is required; <i>Reference</i> shows that number. Stock is deducted at once, and duplicate serials are refused. The file is downloaded once in the main system, then removed.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>. <b>Passed</b> goes on to check-out. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
+          </div>
+          <div class="flow-down">↓</div>
+          <div class="flow-label">C · Check-out to customer</div>
+          <div class="flow">
+            <div class="flow-step"><div class="k">06</div><h3>Order &amp; check-out</h3><p>Directly for an order, or <i>Proceed to check out</i> from a Passed test (pre-filled, stock not deducted twice). Serials logged out, purpose recorded.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step fix"><div class="k">07 · fixed</div><h3>Inventory decrements immediately</h3><p>Available count drops the moment it's checked out — not after delivery.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step fix"><div class="k">08 · fixed</div><h3>Delivery tracked live</h3><p>For delivery → In transit → Delivered, with tracking no./AWB, visible to the whole team. Delivery fees feed the Logistics Budget.</p></div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step"><div class="k">09</div><h3>Customer receives</h3><p>Marked delivered with the received date — closing the loop same-day.</p></div>
+          </div>
         </div>
 
         <div class="note">
-          <b>How this stays in sync without Airtable:</b> this page keeps its own shared, real-time record — no subscription tier, no external account needed. Every visitor with the page open reads and writes the same live data; logging a check-in or a check-out updates the Inventory List, Overview dashboards, Viewing Deck and Logistics Budget immediately.
+          <b>Orders that don't need a trial</b> skip step B and go straight from the Inventory List to check-out. <b>How this stays in sync without Airtable:</b> this page keeps its own shared, real-time record — no subscription tier, no external account needed. Every visitor with the page open reads and writes the same live data; each step above updates the Inventory List, Overview dashboards, Viewing Deck and Logistics Budget immediately.
         </div>
       </section>
 
@@ -1599,11 +1594,8 @@
         document.querySelectorAll(".flow-toggle button").forEach(function(b){b.setAttribute("aria-pressed","false");});
         btn.setAttribute("aria-pressed","true");
         var mode = btn.dataset.mode;
-        document.getElementById("flowBefore").style.display = mode==="before" ? "flex" : "none";
-        document.getElementById("flowAfter").style.display = mode==="after" ? "flex" : "none";
-        document.getElementById("flowBeforeTest").style.display = mode==="before" ? "flex" : "none";
-        document.getElementById("flowAfterTest").style.display = mode==="after" ? "flex" : "none";
-        document.querySelectorAll(".flow-label").forEach(function(l){ l.style.display = l.dataset.for === mode ? "block" : "none"; });
+        document.getElementById("flowBefore").style.display = mode==="before" ? "block" : "none";
+        document.getElementById("flowAfter").style.display = mode==="after" ? "block" : "none";
       });
     });
 
