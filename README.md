@@ -105,6 +105,24 @@ Firestore collection — no extra setup, the existing rules already cover it.
   but not download. Deleting a request also deletes a file that's still
   waiting. When editing a request the attachment is optional; choosing a new
   file replaces the Reference and the waiting file.
+- **Assigned technical (required):** every request names the technical who
+  will test the units (type a name, or pick one already used). It shows in the
+  Testing requests table and drives the Technical Dashboard.
+
+## Technical Dashboard
+
+A view in the main system's side menu. Cards show each technical's units out
+on test (On going / Passed / Returned counts) — click a name to filter. The
+table lists every assignment: **Assigned technical, Customer, Item, Quantity,
+Serial no., Testing status, PDI**, with a search box. Requests filed before
+this field existed show under "Unassigned".
+
+- **PDI upload:** each request has an **Upload PDI** button (PDF, image,
+  Word, Excel, CSV, text or email file, max 3 MB). Like the Reference file, it
+  is kept in the database only until someone clicks **Download PDI** — one
+  download, then it's deleted and the row shows "PDI downloaded". It can be
+  uploaded again later, and **Replace** swaps a waiting file. Deleting the
+  request deletes any PDI still waiting.
 - **No duplicates:** a serial number that's already on another request
   (On going, Passed, or Checked out) can't be requested again, and the same
   serial can't appear twice in one request. Returned units are free again.

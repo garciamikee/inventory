@@ -322,6 +322,7 @@
       <button class="navbtn" data-view="inventory"><span class="ic">▤</span> Inventory List</button>
       <button class="navbtn" data-view="warehouse"><span class="ic">▣</span> Warehouse Log</button>
       <button class="navbtn" data-view="testing"><span class="ic">◈</span> Request for Testing</button>
+      <button class="navbtn" data-view="technical"><span class="ic">⚙</span> Technical Dashboard</button>
       <button class="navbtn" data-view="delivery"><span class="ic">➤</span> Delivery Tracker</button>
       <button class="navbtn" data-view="budget"><span class="ic">₱</span> Logistics Budget</button>
     </div>
@@ -550,6 +551,7 @@
             <div class="formgrid">
               <div class="field"><label>Request date</label><input name="date" type="date" required></div>
               <div class="field"><label>Customer name</label><input name="customer" required placeholder="e.g. Infinivan"></div>
+              <div class="field"><label>Assigned technical</label><input name="technical" required list="technicalList" placeholder="Name of the technical" autocomplete="off"><datalist id="technicalList"></datalist></div>
               <div class="field"><label>Reference (attachment)</label><input id="testReference" name="reference" type="file" required accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg"><div class="hint" id="testReferenceHint" style="font-size:11.5px;color:var(--muted);margin-top:4px;">Required. Name the file after the PO/RFQ no. (e.g. RFQ-2026-014.pdf). Max 3 MB.</div></div>
               <div class="field"><label>Requested by</label><input id="testRequestedBy" readonly placeholder="Your sign-in email"></div>
             </div>
@@ -572,8 +574,8 @@
           <div class="block-head"><h2>Testing requests</h2><span class="hint">on going → passed → check out, or returned to stock</span></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Request date</th><th>Customer</th><th>Reference</th><th>Item(s)</th><th>Requested by</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="testingBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+              <thead><tr><th>Request date</th><th>Customer</th><th>Reference</th><th>Assigned technical</th><th>Item(s)</th><th>Requested by</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="testingBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
             </table>
           </div>
           <div class="legend">
@@ -583,6 +585,32 @@
             <span><i style="background:var(--line)"></i> Returned</span>
           </div>
         </section>
+      </section>
+
+      <!-- TECHNICAL DASHBOARD -->
+      <section class="view" id="view-technical">
+        <p class="lede">Who is testing what. Each test request is assigned to a technical when it's filed. Upload the technical's PDI (pre-delivery inspection) report here — it can be downloaded once, then it's removed to save space.</p>
+
+        <div class="block-head"><h2>Assigned technicals</h2><span class="hint">units out on test, by technical — click a name to filter</span></div>
+        <div class="dash-cards" id="techCards"></div>
+
+        <div class="block-head" style="margin-top:22px;">
+          <h2>Testing assignments</h2>
+          <div class="search"><span>⌕</span><input id="techSearch" placeholder="Search technical, customer, item, serial…" aria-label="Search testing assignments"></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Assigned technical</th><th>Customer</th><th>Item</th><th>Qty</th><th>Serial no.</th><th>Testing status</th><th>PDI</th></tr></thead>
+            <tbody id="techBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <input type="file" id="pdiFile" hidden accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg">
+        <div class="legend">
+          <span><i style="background:var(--warn)"></i> On going</span>
+          <span><i style="background:var(--good)"></i> Passed</span>
+          <span><i style="background:var(--accent)"></i> Checked out to delivery</span>
+          <span><i style="background:var(--line)"></i> Returned</span>
+        </div>
       </section>
 
       <!-- DELIVERY -->
@@ -705,7 +733,7 @@
           <div class="flow-down">↓</div>
           <div class="flow-label">B · Request for testing (when a customer wants a trial)</div>
           <div class="flow">
-            <div class="flow-step flag"><div class="k">04 · gap</div><h3>Trial requested by chat</h3><p>Nothing is filed. The PO/RFQ paperwork sits in an inbox, units aren't deducted, and two people can promise the same unit.</p></div>
+            <div class="flow-step flag"><div class="k">04 · gap</div><h3>Trial requested by chat</h3><p>Nothing is filed. Nobody can see which technical has which unit, the PO/RFQ paperwork and PDI sit in inboxes, units aren't deducted, and two people can promise the same unit.</p></div>
             <div class="flow-arrow">→</div>
             <div class="flow-step flag"><div class="k">05 · gap</div><h3>Trial outcome untracked</h3><p>Passed or returned is remembered, not recorded. Unused units are added back late, or never.</p></div>
           </div>
@@ -734,9 +762,9 @@
           <div class="flow-down">↓</div>
           <div class="flow-label">B · Request for testing (when a customer wants a trial)</div>
           <div class="flow">
-            <div class="flow-step fix"><div class="k">04 · fixed</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck with items and serials. A reference file named after the PO/RFQ no. is required; <i>Reference</i> shows that number. Stock is deducted at once, and duplicate serials are refused. The file is downloaded once in the main system, then removed.</p></div>
+            <div class="flow-step fix"><div class="k">04 · fixed</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck with items and serials and an <b>assigned technical</b>. A reference file named after the PO/RFQ no. is required; <i>Reference</i> shows that number. Stock is deducted at once, and duplicate serials are refused. The file is downloaded once in the main system, then removed.</p></div>
             <div class="flow-arrow">→</div>
-            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>. <b>Passed</b> goes on to check-out. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
+            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>, and the <i>Technical Dashboard</i> shows who is testing what; the technical's <b>PDI</b> is uploaded there and downloaded once. <b>Passed</b> goes on to check-out. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
           </div>
           <div class="flow-down">↓</div>
           <div class="flow-label">C · Check-out to customer</div>
@@ -851,7 +879,7 @@
   var editingTestId = null, pendingTestRequestId = null;
   var editingReturnId = null, returnMode = "single";
 
-  var pageTitles = {overview:"Overview", inventory:"Inventory List", warehouse:"Warehouse Log", testing:"Request for Testing", delivery:"Delivery Tracker", budget:"Logistics Budget", flow:"Process Flow"};
+  var pageTitles = {overview:"Overview", inventory:"Inventory List", warehouse:"Warehouse Log", testing:"Request for Testing", technical:"Technical Dashboard", delivery:"Delivery Tracker", budget:"Logistics Budget", flow:"Process Flow"};
   var STAGES = ["For Delivery","In Transit","Delivered"];
 
   function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -982,8 +1010,8 @@
       try{ await db.doc("request_files/"+id+"_"+i).delete(); }catch(e){ /* best effort */ }
     }
   }
-  // Stores the file and returns the fields to put on the request record.
-  async function saveAttachment(file){
+  // Stores a file in small pieces and returns {id, chunks, name, type, size}.
+  async function storeFile(file){
     var b64 = await readFileBase64(file);
     var id = Date.now().toString(36) + Math.random().toString(36).slice(2,8);
     var chunks = Math.max(1, Math.ceil(b64.length / REFERENCE_CHUNK));
@@ -993,10 +1021,14 @@
       }
     }catch(e){
       await deleteAttachment(id, chunks);
-      throw new Error("Couldn't upload the attachment — try again.");
+      throw new Error("Couldn't upload the file — try again.");
     }
-    return { attachmentId:id, attachmentChunks:chunks, attachmentName:file.name, attachmentType:file.type||"application/octet-stream", attachmentSize:file.size };
+    return { id:id, chunks:chunks, name:file.name, type:file.type||"application/octet-stream", size:file.size };
   }
+  // Fields on the request record for the Reference file and the PDI file.
+  function attachmentFields(f){ return { attachmentId:f.id, attachmentChunks:f.chunks, attachmentName:f.name, attachmentType:f.type, attachmentSize:f.size }; }
+  function pdiFields(f){ return { pdiId:f.id, pdiChunks:f.chunks, pdiName:f.name, pdiType:f.type, pdiSize:f.size }; }
+  async function saveAttachment(file){ return attachmentFields(await storeFile(file)); }
   function testPill(r){
     if(r.deliveryId) return '<span class="pill accentpill">Checked out</span>';
     if(r.status === "Passed") return '<span class="pill good">Passed</span>';
@@ -1254,6 +1286,8 @@
 
   function renderTesting(){
     document.querySelectorAll('#testLines select.line-item').forEach(function(s){ fillItemSelect(s, true); });
+    var techs = {}; state.testRequests.forEach(function(r){ if((r.technical||"").trim()) techs[r.technical.trim()] = true; });
+    document.getElementById("technicalList").innerHTML = Object.keys(techs).sort().map(function(n){ return "<option value=\""+esc(n)+"\">"; }).join("");
     var by = document.getElementById("testRequestedBy");
     if(by){ by.defaultValue = currentUserEmail(); if(!editingTestId) by.value = currentUserEmail(); }
     var rows = state.testRequests.slice().sort(function(a,b){ return new Date(b.createdAt||0) - new Date(a.createdAt||0); });
@@ -1264,9 +1298,66 @@
         return '<div>'+esc(itemLabelOf(l.itemId))+' ×'+esc(l.qty)+(s?'<div class="il-serials">'+esc(s)+'</div>':'')+'</div>';
       }).join("");
       return '<tr><td>'+esc(fmtDate(r.requestDate))+'</td><td>'+esc(r.customer)+'</td><td class="mono">'+esc(r.po||"—")+'</td>'+
-        '<td>'+itemsCell+'</td>'+
+        '<td>'+esc(r.technical||"—")+'</td><td>'+itemsCell+'</td>'+
         '<td>'+esc(r.requestedBy||"—")+'</td><td>'+testPill(r)+'</td><td>'+testActions(r)+'</td></tr>';
-    }).join("") : '<tr><td colspan="7" class="empty">No test requests filed yet.</td></tr>';
+    }).join("") : '<tr><td colspan="8" class="empty">No test requests filed yet.</td></tr>';
+  }
+
+  var techFilter = null;
+  function techName(r){ return (r.technical||"").trim() || "Unassigned"; }
+  function pdiCell(r){
+    var btns = "";
+    if(r.pdiId){
+      btns = '<button type="button" class="btn small" data-pdi-download="'+esc(r.id)+'" title="'+esc(r.pdiName||"")+'">Download PDI</button>'+
+        '<button type="button" class="btn ghost small" data-pdi-upload="'+esc(r.id)+'">Replace</button>';
+    } else {
+      btns = (r.pdiRemovedAt ? '<span class="pill neutral" title="Downloaded once and removed from storage">PDI downloaded</span>' : '')+
+        '<button type="button" class="btn ghost small" data-pdi-upload="'+esc(r.id)+'">Upload PDI</button>';
+    }
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'+btns+'</div>'+
+      (r.pdiId && r.pdiUploadedBy ? '<div class="il-serials">'+esc(r.pdiName||"")+' · '+esc(r.pdiUploadedBy)+'</div>' : '');
+  }
+  function renderTechnical(){
+    var reqs = state.testRequests.slice().sort(function(a,b){ return new Date(b.createdAt||0) - new Date(a.createdAt||0); });
+    var groups = {};
+    reqs.forEach(function(r){
+      var n = techName(r);
+      var g = groups[n] = groups[n] || {units:0, ongoing:0, passed:0, returned:0, out:0};
+      var u = sumQty(getLines(r));
+      if(r.deliveryId){ g.out++; }
+      else if(r.status === "Returned"){ g.returned++; }
+      else if(r.status === "Passed"){ g.passed++; g.units += u; }
+      else { g.ongoing++; g.units += u; }
+    });
+    var names = Object.keys(groups).sort(function(a,b){ return a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : a.localeCompare(b); });
+    if(techFilter && !groups[techFilter]) techFilter = null;
+    document.getElementById("techCards").innerHTML = names.length ? names.map(function(n){
+      var g = groups[n];
+      return '<button type="button" class="dash-card" data-tech="'+esc(n)+'" aria-pressed="'+(techFilter===n)+'">'+
+        '<div class="dc-label">'+esc(n)+'</div><div class="dc-value">'+g.units+'</div>'+
+        '<div class="dc-hint">units out · '+g.ongoing+' on going · '+g.passed+' passed · '+g.returned+' returned</div></button>';
+    }).join("") : '<div class="empty">No test requests yet.</div>';
+
+    var q = (document.getElementById("techSearch").value||"").trim().toLowerCase();
+    var html = "";
+    reqs.forEach(function(r){
+      if(techFilter && techName(r) !== techFilter) return;
+      var lines = getLines(r);
+      if(q){
+        var hay = [techName(r), r.customer, r.po, r.deliveryId ? "checked out" : r.status];
+        lines.forEach(function(l){ hay.push(itemLabelOf(l.itemId)); hay = hay.concat(l.serials||[]); });
+        if(hay.join(" ").toLowerCase().indexOf(q) < 0) return;
+      }
+      var span = Math.max(lines.length, 1);
+      lines.forEach(function(l, i){
+        html += '<tr>';
+        if(i === 0) html += '<td rowspan="'+span+'">'+esc(techName(r))+'</td><td rowspan="'+span+'">'+esc(r.customer)+'</td>';
+        html += '<td>'+esc(itemLabelOf(l.itemId))+'</td><td>'+esc(l.qty)+'</td><td class="mono">'+esc((l.serials||[]).join(", ")||"—")+'</td>';
+        if(i === 0) html += '<td rowspan="'+span+'">'+testPill(r)+'</td><td rowspan="'+span+'">'+pdiCell(r)+'</td>';
+        html += '</tr>';
+      });
+    });
+    document.getElementById("techBody").innerHTML = html || '<tr><td colspan="7" class="empty">'+(q || techFilter ? "No matches." : "No test requests filed yet.")+'</td></tr>';
   }
 
   function renderReturns(){
@@ -1281,7 +1372,7 @@
     }).join("") : '<tr><td colspan="5" class="empty">No units returned yet.</td></tr>';
   }
 
-  function renderAll(){ renderOverview(); renderInventory(); renderWarehouse(); renderReturns(); renderTesting(); renderDelivery(); renderBudget(); renderDeck(); }
+  function renderAll(){ renderOverview(); renderInventory(); renderWarehouse(); renderReturns(); renderTesting(); renderTechnical(); renderDelivery(); renderBudget(); renderDeck(); }
 
   // ---------------- Routing (main app vs. public viewing deck) ----------------
   function applyRoute(){
@@ -1791,6 +1882,7 @@
       var lines = getLines(rec);
       form.elements.date.value = rec.requestDate||"";
       form.elements.customer.value = rec.customer||"";
+      form.elements.technical.value = rec.technical||"";
       form.elements.reference.value = "";
       form.elements.reference.required = false;
       document.getElementById("testReferenceHint").textContent = "Current reference: " + (rec.po || "none") + (rec.attachmentId ? " (file waiting to be downloaded)" : " (no file on record)") + ". Leave empty to keep it, or choose a new file to replace it.";
@@ -1828,30 +1920,56 @@
     }
 
     // One-time download: the file is read, saved to the user's computer, then removed from the database.
-    async function downloadTestFile(id){
+    // kind: "attachment" (the Reference file) or "pdi". The prefix names the record fields.
+    async function downloadTestFile(id, kind){
       if(!db) return;
+      kind = kind === "pdi" ? "pdi" : "attachment";
+      var F = { id:kind+"Id", chunks:kind+"Chunks", name:kind+"Name", type:kind+"Type" };
+      var label = kind === "pdi" ? "PDI" : "file";
       var snap = await db.doc("test_requests/"+id).get();
       var rec = snap.exists ? snap.data() : null;
-      if(!rec || !rec.attachmentId){ alertDialog("This file has already been downloaded and removed."); return; }
-      var ok = await showModal("Download "+rec.attachmentName+"?\nIt can only be downloaded once — the file is removed from the system afterwards, so keep your copy.", {yesLabel:"Download", yesColor:"var(--accent)"});
+      if(!rec || !rec[F.id]){ alertDialog("This "+label+" has already been downloaded and removed."); return; }
+      var ok = await showModal("Download "+rec[F.name]+"?\nIt can only be downloaded once — the "+label+" is removed from the system afterwards, so keep your copy.", {yesLabel:"Download", yesColor:"var(--accent)"});
       if(!ok) return;
       try{
         var parts = [];
-        for(var i=0;i<rec.attachmentChunks;i++){
-          var c = await db.doc("request_files/"+rec.attachmentId+"_"+i).get();
-          if(!c.exists) throw new Error("The file is incomplete or was already removed.");
+        for(var i=0;i<rec[F.chunks];i++){
+          var c = await db.doc("request_files/"+rec[F.id]+"_"+i).get();
+          if(!c.exists) throw new Error("The "+label+" is incomplete or was already removed.");
           parts.push(c.data().data);
         }
         var bin = atob(parts.join("")), bytes = new Uint8Array(bin.length);
         for(var b=0;b<bin.length;b++) bytes[b] = bin.charCodeAt(b);
-        var url = URL.createObjectURL(new Blob([bytes], {type: rec.attachmentType || "application/octet-stream"}));
+        var url = URL.createObjectURL(new Blob([bytes], {type: rec[F.type] || "application/octet-stream"}));
         var a = document.createElement("a");
-        a.href = url; a.download = rec.attachmentName || "attachment";
+        a.href = url; a.download = rec[F.name] || kind;
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
-        await deleteAttachment(rec.attachmentId, rec.attachmentChunks);
-        await db.doc("test_requests/"+id).update({ attachmentId:"", attachmentChunks:0, attachmentRemovedAt:new Date().toISOString(), attachmentDownloadedBy:currentUserEmail(), updatedAt:new Date().toISOString() });
+        await deleteAttachment(rec[F.id], rec[F.chunks]);
+        var upd = { updatedAt:new Date().toISOString() };
+        upd[F.id] = ""; upd[F.chunks] = 0; upd[kind+"RemovedAt"] = new Date().toISOString(); upd[kind+"DownloadedBy"] = currentUserEmail();
+        await db.doc("test_requests/"+id).update(upd);
       }catch(err){ alertDialog("Couldn't download: " + (err && err.message ? err.message : "try again.")); }
+    }
+
+    // Upload (or replace) the PDI for a request. The old PDI, if still waiting, is removed.
+    async function uploadPdi(id, file){
+      if(!db || !file) return;
+      var problem = checkReferenceFile(file);
+      if(problem){ alertDialog(problem.replace("Name the file after the PO/RFQ no. (e.g. RFQ-2026-014.pdf).", "That file name isn't usable.")); return; }
+      var stored = null;
+      try{
+        var snap = await db.doc("test_requests/"+id).get();
+        if(!snap.exists) throw new Error("That request no longer exists.");
+        var rec = snap.data();
+        stored = await storeFile(file);
+        var upd = Object.assign(pdiFields(stored), { pdiUploadedBy: currentUserEmail(), pdiUploadedAt: new Date().toISOString(), pdiRemovedAt:"", pdiDownloadedBy:"", updatedAt: new Date().toISOString() });
+        await db.doc("test_requests/"+id).update(upd);
+        if(rec.pdiId) await deleteAttachment(rec.pdiId, rec.pdiChunks);
+      }catch(err){
+        if(stored) await deleteAttachment(stored.id, stored.chunks);
+        alertDialog("Couldn't upload the PDI: " + (err && err.message ? err.message : "try again."));
+      }
     }
 
     async function deleteTestRow(id){
@@ -1875,6 +1993,7 @@
           try{ await db.doc("deliveries/"+rec.deliveryId).update({fromTestRequestId:""}); }catch(e){ /* delivery already gone */ }
         }
         if(rec.attachmentId) await deleteAttachment(rec.attachmentId, rec.attachmentChunks);
+        if(rec.pdiId) await deleteAttachment(rec.pdiId, rec.pdiChunks);
         await db.doc("test_requests/"+id).delete();
       }catch(err){ alertDialog("Couldn't delete: " + (err && err.message ? err.message : "try again.")); }
     }
@@ -1911,13 +2030,33 @@
       document.getElementById("checkoutCard").scrollIntoView({block:"center"});
     }
 
+    // ---------------- Technical dashboard ----------------
+    document.getElementById("techCards").addEventListener("click", function(e){
+      var card = e.target.closest("[data-tech]"); if(!card) return;
+      techFilter = (techFilter === card.dataset.tech) ? null : card.dataset.tech;
+      renderTechnical();
+    });
+    document.getElementById("techSearch").addEventListener("input", renderTechnical);
+    var pdiTargetId = null;
+    document.getElementById("techBody").addEventListener("click", function(e){
+      var up = e.target.closest("[data-pdi-upload]");
+      var dl = e.target.closest("[data-pdi-download]");
+      if(up){ pdiTargetId = up.dataset.pdiUpload; document.getElementById("pdiFile").click(); }
+      if(dl) downloadTestFile(dl.dataset.pdiDownload, "pdi");
+    });
+    document.getElementById("pdiFile").addEventListener("change", async function(){
+      var file = this.files && this.files[0], id = pdiTargetId;
+      this.value = ""; pdiTargetId = null;
+      if(file && id) await uploadPdi(id, file);
+    });
+
     document.getElementById("testingBody").addEventListener("click", function(e){
       var setBtn = e.target.closest("[data-test-set]");
       var goBtn = e.target.closest("[data-test-proceed]");
       var editBtn = e.target.closest("[data-edit-kind]");
       var delBtn = e.target.closest("[data-del-kind]");
       var dlBtn = e.target.closest("[data-test-download]");
-      if(dlBtn) downloadTestFile(dlBtn.dataset.testDownload);
+      if(dlBtn) downloadTestFile(dlBtn.dataset.testDownload, "attachment");
       if(setBtn) setTestStatus(setBtn.dataset.testId, setBtn.dataset.testSet);
       if(goBtn) proceedToCheckout(state.testRequests.find(function(t){ return t.id === goBtn.dataset.testProceed; }));
       if(editBtn){ var rec = state.testRequests.find(function(t){ return t.id === editBtn.dataset.editId; }); if(rec) openTestEdit(rec); }
@@ -2301,7 +2440,7 @@
 
       var now = new Date().toISOString();
       var payload = {
-        requestDate:data.date, customer:data.customer.trim(),
+        requestDate:data.date, customer:data.customer.trim(), technical:(data.technical||"").trim(),
         lines:resolved,
         updatedAt:now
       };
