@@ -551,7 +551,7 @@
             <div class="formgrid">
               <div class="field"><label>Request date</label><input name="date" type="date" required></div>
               <div class="field"><label>Customer name</label><input name="customer" required placeholder="e.g. Infinivan"></div>
-              <div class="field"><label>Assigned technical</label><input name="technical" required list="technicalList" placeholder="Name of the technical" autocomplete="off"><datalist id="technicalList"></datalist></div>
+              <div class="field"><label>Assigned technical</label><select name="technical" id="testTechnical" required></select></div>
               <div class="field"><label>Reference (attachment)</label><input id="testReference" name="reference" type="file" required accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg"><div class="hint" id="testReferenceHint" style="font-size:11.5px;color:var(--muted);margin-top:4px;">Required. Name the file after the PO/RFQ no. (e.g. RFQ-2026-014.pdf). Max 3 MB.</div></div>
               <div class="field"><label>Requested by</label><input id="testRequestedBy" readonly placeholder="Your sign-in email"></div>
             </div>
@@ -589,7 +589,7 @@
 
       <!-- TECHNICAL DASHBOARD -->
       <section class="view" id="view-technical">
-        <p class="lede">Who is testing what. Each test request is assigned to a technical when it's filed. Upload the technical's PDI (pre-delivery inspection) report here — it can be downloaded once, then it's removed to save space.</p>
+        <p class="lede">Who is testing what. Each test request is assigned to a technical when it's filed. The assigned technical uploads the PDI (pre-delivery inspection) report in the Viewing Deck; download it here — once, then it's removed to save space.</p>
 
         <div class="block-head"><h2>Assigned technicals</h2><span class="hint">units out on test, by technical — click a name to filter</span></div>
         <div class="dash-cards" id="techCards"></div>
@@ -604,7 +604,6 @@
             <tbody id="techBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
           </table>
         </div>
-        <input type="file" id="pdiFile" hidden accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg">
         <div class="legend">
           <span><i style="background:var(--warn)"></i> On going</span>
           <span><i style="background:var(--good)"></i> Passed</span>
@@ -764,7 +763,7 @@
           <div class="flow">
             <div class="flow-step fix"><div class="k">04 · fixed</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck with items and serials and an <b>assigned technical</b>. A reference file named after the PO/RFQ no. is required; <i>Reference</i> shows that number. Stock is deducted at once, and duplicate serials are refused. The file is downloaded once in the main system, then removed.</p></div>
             <div class="flow-arrow">→</div>
-            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>, and the <i>Technical Dashboard</i> shows who is testing what; the technical's <b>PDI</b> is uploaded there and downloaded once. <b>Passed</b> goes on to check-out. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
+            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>, and the <i>Technical Dashboard</i> (main system and Viewing Deck) shows who is testing what. The assigned technical updates the status and uploads the <b>PDI</b> in the Viewing Deck; the main system downloads it once. <b>Passed</b> goes on to check-out. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
           </div>
           <div class="flow-down">↓</div>
           <div class="flow-label">C · Check-out to customer</div>
@@ -879,6 +878,13 @@
   var editingTestId = null, pendingTestRequestId = null;
   var editingReturnId = null, returnMode = "single";
 
+  // The technicals who can be assigned to a test request. They can upload the PDI and change the testing status
+  // from the Viewing Deck, but only for requests assigned to them (matched on their sign-in email).
+  var TECHNICALS = [
+    {name:"Mj", email:"mjg@1wan.ph"}, {name:"Kristian", email:"kv@1wan.ph"}, {name:"Robin", email:"js@1wan.ph"},
+    {name:"Kevin", email:"kb@1wan.ph"}, {name:"Renz", email:"rt@1wan.ph"}, {name:"Mavs", email:"mf@1wan.ph"}
+  ];
+  function technicalEmailFor(name){ var t = TECHNICALS.find(function(x){ return x.name === name; }); return t ? t.email : ""; }
   var pageTitles = {overview:"Overview", inventory:"Inventory List", warehouse:"Warehouse Log", testing:"Request for Testing", technical:"Technical Dashboard", delivery:"Delivery Tracker", budget:"Logistics Budget", flow:"Process Flow"};
   var STAGES = ["For Delivery","In Transit","Delivered"];
 
@@ -1027,7 +1033,6 @@
   }
   // Fields on the request record for the Reference file and the PDI file.
   function attachmentFields(f){ return { attachmentId:f.id, attachmentChunks:f.chunks, attachmentName:f.name, attachmentType:f.type, attachmentSize:f.size }; }
-  function pdiFields(f){ return { pdiId:f.id, pdiChunks:f.chunks, pdiName:f.name, pdiType:f.type, pdiSize:f.size }; }
   async function saveAttachment(file){ return attachmentFields(await storeFile(file)); }
   function testPill(r){
     if(r.deliveryId) return '<span class="pill accentpill">Checked out</span>';
@@ -1284,10 +1289,16 @@
     return '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+btns+'</div>';
   }
 
+  function fillTechnicalSelect(current){
+    var sel = document.getElementById("testTechnical");
+    var names = TECHNICALS.map(function(t){ return t.name; });
+    // A request filed earlier with a typed name keeps that name as an extra choice while editing.
+    if(current && names.indexOf(current) < 0) names.push(current);
+    sel.innerHTML = '<option value="">Select technical…</option>' + names.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join("");
+    sel.value = current || "";
+  }
   function renderTesting(){
     document.querySelectorAll('#testLines select.line-item').forEach(function(s){ fillItemSelect(s, true); });
-    var techs = {}; state.testRequests.forEach(function(r){ if((r.technical||"").trim()) techs[r.technical.trim()] = true; });
-    document.getElementById("technicalList").innerHTML = Object.keys(techs).sort().map(function(n){ return "<option value=\""+esc(n)+"\">"; }).join("");
     var by = document.getElementById("testRequestedBy");
     if(by){ by.defaultValue = currentUserEmail(); if(!editingTestId) by.value = currentUserEmail(); }
     var rows = state.testRequests.slice().sort(function(a,b){ return new Date(b.createdAt||0) - new Date(a.createdAt||0); });
@@ -1305,21 +1316,19 @@
 
   var techFilter = null;
   function techName(r){ return (r.technical||"").trim() || "Unassigned"; }
+  // The PDI is uploaded by the assigned technical in the Viewing Deck; here it can be downloaded once.
   function pdiCell(r){
-    var btns = "";
     if(r.pdiId){
-      btns = '<button type="button" class="btn small" data-pdi-download="'+esc(r.id)+'" title="'+esc(r.pdiName||"")+'">Download PDI</button>'+
-        '<button type="button" class="btn ghost small" data-pdi-upload="'+esc(r.id)+'">Replace</button>';
-    } else {
-      btns = (r.pdiRemovedAt ? '<span class="pill neutral" title="Downloaded once and removed from storage">PDI downloaded</span>' : '')+
-        '<button type="button" class="btn ghost small" data-pdi-upload="'+esc(r.id)+'">Upload PDI</button>';
+      return '<button type="button" class="btn small" data-pdi-download="'+esc(r.id)+'" title="'+esc(r.pdiName||"")+'">Download PDI</button>'+
+        '<div class="il-serials">'+esc(r.pdiName||"")+(r.pdiUploadedBy ? ' · '+esc(r.pdiUploadedBy) : '')+'</div>';
     }
-    return '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'+btns+'</div>'+
-      (r.pdiId && r.pdiUploadedBy ? '<div class="il-serials">'+esc(r.pdiName||"")+' · '+esc(r.pdiUploadedBy)+'</div>' : '');
+    if(r.pdiRemovedAt) return '<span class="pill neutral" title="Downloaded once and removed from storage">PDI downloaded</span>';
+    return '<span style="color:var(--muted);font-size:12.5px;">Not uploaded yet</span>';
   }
   function renderTechnical(){
     var reqs = state.testRequests.slice().sort(function(a,b){ return new Date(b.createdAt||0) - new Date(a.createdAt||0); });
     var groups = {};
+    TECHNICALS.forEach(function(t){ groups[t.name] = {units:0, ongoing:0, passed:0, returned:0, out:0}; });
     reqs.forEach(function(r){
       var n = techName(r);
       var g = groups[n] = groups[n] || {units:0, ongoing:0, passed:0, returned:0, out:0};
@@ -1329,7 +1338,8 @@
       else if(r.status === "Passed"){ g.passed++; g.units += u; }
       else { g.ongoing++; g.units += u; }
     });
-    var names = Object.keys(groups).sort(function(a,b){ return a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : a.localeCompare(b); });
+    var order = TECHNICALS.map(function(t){ return t.name; });
+    var names = Object.keys(groups).sort(function(a,b){ var ia = order.indexOf(a), ib = order.indexOf(b); if(ia > -1 && ib > -1) return ia - ib; if(ia > -1) return -1; if(ib > -1) return 1; return a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : a.localeCompare(b); });
     if(techFilter && !groups[techFilter]) techFilter = null;
     document.getElementById("techCards").innerHTML = names.length ? names.map(function(n){
       var g = groups[n];
@@ -1673,6 +1683,7 @@
     resetLines("checkinLines");
     resetLines("checkoutLines");
     resetLines("testLines");
+    fillTechnicalSelect("");
 
     var purposeSelect = document.getElementById("purposeSelect");
     var budgetFields = document.getElementById("budgetFields");
@@ -1859,6 +1870,7 @@
 
     // ---------------- Request for Testing: edit / status / delete / hand-off to check-out ----------------
     function exitTestEdit(){
+      fillTechnicalSelect("");
       editingTestId = null;
       document.getElementById("testingFormTitle").textContent = "Request for testing";
       document.getElementById("testingFormSubmit").textContent = "File request";
@@ -1882,7 +1894,7 @@
       var lines = getLines(rec);
       form.elements.date.value = rec.requestDate||"";
       form.elements.customer.value = rec.customer||"";
-      form.elements.technical.value = rec.technical||"";
+      fillTechnicalSelect(rec.technical||"");
       form.elements.reference.value = "";
       form.elements.reference.required = false;
       document.getElementById("testReferenceHint").textContent = "Current reference: " + (rec.po || "none") + (rec.attachmentId ? " (file waiting to be downloaded)" : " (no file on record)") + ". Leave empty to keep it, or choose a new file to replace it.";
@@ -1952,26 +1964,6 @@
       }catch(err){ alertDialog("Couldn't download: " + (err && err.message ? err.message : "try again.")); }
     }
 
-    // Upload (or replace) the PDI for a request. The old PDI, if still waiting, is removed.
-    async function uploadPdi(id, file){
-      if(!db || !file) return;
-      var problem = checkReferenceFile(file);
-      if(problem){ alertDialog(problem.replace("Name the file after the PO/RFQ no. (e.g. RFQ-2026-014.pdf).", "That file name isn't usable.")); return; }
-      var stored = null;
-      try{
-        var snap = await db.doc("test_requests/"+id).get();
-        if(!snap.exists) throw new Error("That request no longer exists.");
-        var rec = snap.data();
-        stored = await storeFile(file);
-        var upd = Object.assign(pdiFields(stored), { pdiUploadedBy: currentUserEmail(), pdiUploadedAt: new Date().toISOString(), pdiRemovedAt:"", pdiDownloadedBy:"", updatedAt: new Date().toISOString() });
-        await db.doc("test_requests/"+id).update(upd);
-        if(rec.pdiId) await deleteAttachment(rec.pdiId, rec.pdiChunks);
-      }catch(err){
-        if(stored) await deleteAttachment(stored.id, stored.chunks);
-        alertDialog("Couldn't upload the PDI: " + (err && err.message ? err.message : "try again."));
-      }
-    }
-
     async function deleteTestRow(id){
       var rec = state.testRequests.find(function(t){ return t.id === id; });
       if(!rec || !db) return;
@@ -2037,17 +2029,9 @@
       renderTechnical();
     });
     document.getElementById("techSearch").addEventListener("input", renderTechnical);
-    var pdiTargetId = null;
     document.getElementById("techBody").addEventListener("click", function(e){
-      var up = e.target.closest("[data-pdi-upload]");
       var dl = e.target.closest("[data-pdi-download]");
-      if(up){ pdiTargetId = up.dataset.pdiUpload; document.getElementById("pdiFile").click(); }
       if(dl) downloadTestFile(dl.dataset.pdiDownload, "pdi");
-    });
-    document.getElementById("pdiFile").addEventListener("change", async function(){
-      var file = this.files && this.files[0], id = pdiTargetId;
-      this.value = ""; pdiTargetId = null;
-      if(file && id) await uploadPdi(id, file);
     });
 
     document.getElementById("testingBody").addEventListener("click", function(e){
@@ -2440,7 +2424,7 @@
 
       var now = new Date().toISOString();
       var payload = {
-        requestDate:data.date, customer:data.customer.trim(), technical:(data.technical||"").trim(),
+        requestDate:data.date, customer:data.customer.trim(), technical:(data.technical||"").trim(), technicalEmail:technicalEmailFor((data.technical||"").trim()) || (old && old.technical === (data.technical||"").trim() ? (old.technicalEmail||"") : ""),
         lines:resolved,
         updatedAt:now
       };

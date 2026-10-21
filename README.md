@@ -106,23 +106,45 @@ Firestore collection — no extra setup, the existing rules already cover it.
   waiting. When editing a request the attachment is optional; choosing a new
   file replaces the Reference and the waiting file.
 - **Assigned technical (required):** every request names the technical who
-  will test the units (type a name, or pick one already used). It shows in the
+  will test the units (pick from the list: Mj, Kristian, Robin, Kevin, Renz, Mavs). It shows in the
   Testing requests table and drives the Technical Dashboard.
 
 ## Technical Dashboard
 
-A view in the main system's side menu. Cards show each technical's units out
-on test (On going / Passed / Returned counts) — click a name to filter. The
-table lists every assignment: **Assigned technical, Customer, Item, Quantity,
-Serial no., Testing status, PDI**, with a search box. Requests filed before
-this field existed show under "Unassigned".
+In the main system's side menu **and** on the Viewing Deck. Cards show each
+technical's units out on test (On going / Passed / Returned counts) — click a
+name to filter. The table lists every assignment: **Assigned technical,
+Customer, Item, Quantity, Serial no., Testing status, PDI**, with a search
+box. Requests filed before the technical dropdown existed show under their
+typed name or "Unassigned".
 
-- **PDI upload:** each request has an **Upload PDI** button (PDF, image,
-  Word, Excel, CSV, text or email file, max 3 MB). Like the Reference file, it
-  is kept in the database only until someone clicks **Download PDI** — one
-  download, then it's deleted and the row shows "PDI downloaded". It can be
-  uploaded again later, and **Replace** swaps a waiting file. Deleting the
-  request deletes any PDI still waiting.
+**Who can do what** (technicals are matched on their sign-in email):
+
+| Technical | Email |
+| --- | --- |
+| Mj | mjg@1wan.ph |
+| Kristian | kv@1wan.ph |
+| Robin | js@1wan.ph |
+| Kevin | kb@1wan.ph |
+| Renz | rt@1wan.ph |
+| Mavs | mf@1wan.ph |
+
+- On the **Viewing Deck**, only the technical a request is assigned to sees
+  **Mark Passed / Mark Returned** (Returned puts the units back in stock) and
+  **Upload PDI** on it. Everyone else sees the dashboard read-only. The check
+  is repeated against a fresh read of the request when the button is used.
+- The **PDI** (PDF, image, Word, Excel, CSV, text or email file, max 3 MB) is
+  kept in the database only until the **main system** clicks **Download PDI**
+  — one download, then it's deleted and the row shows "PDI downloaded". The
+  technical can upload another later, or **Replace** one still waiting.
+  Deleting the request deletes any PDI still waiting.
+- **Limit of this protection:** it is enforced by the page. Firestore's rules
+  are shared by the main system and the deck and only check for an `@1wan.ph`
+  account, so someone with technical know-how could still write to the
+  database directly. Tightening that needs per-user rules (a later step).
+- The technicals list is in `TECHNICALS` near the top of the script in both
+  `index.html` files — edit both to add or rename people.
+
 - **No duplicates:** a serial number that's already on another request
   (On going, Passed, or Checked out) can't be requested again, and the same
   serial can't appear twice in one request. Returned units are free again.
