@@ -148,7 +148,8 @@ typed name or "Unassigned".
 - **No duplicates:** a serial number that's already on another request
   (On going, Passed, or Checked out) can't be requested again, and the same
   serial can't appear twice in one request. Returned units are free again.
-- **Statuses:** On going → **Passed** or **Returned**.
+- **Statuses:** On going → **Passed**, **Incomplete**, **Defective** or **Returned**; Incomplete → Passed, Defective or Returned; Passed → Returned.
+  **Incomplete** means the test is not finished (units stay out of stock, still counted as out for testing). **Defective** means the units failed — they stay out of stock (not added back to the inventory list) and the status is final. The assigned technical can also set these from the Viewing Deck.
 - **Passed** units show a *Proceed to check out* button, which opens the
   Delivery Tracker form pre-filled. Stock is *not* deducted a second time
   (item/qty/serials are locked), and the request shows "Checked out".

@@ -205,7 +205,7 @@
 
   .pill{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:99px; white-space:nowrap; color:#ffffff; }
   .pill.good{ background:var(--good); } .pill.warn{ background:var(--warn); }
-  .pill.bad{ background:var(--bad); } .pill.accentpill{ background:var(--accent); }
+  .pill.bad{ background:var(--bad); } .pill.accentpill{ background:var(--accent); } .pill.incomplete{ background:#7c5cd6; }
   .pill.neutral{ background:var(--surface-2); border:1px solid var(--line); color:var(--muted); }
 
   .chiprow{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
@@ -534,7 +534,7 @@
 
       <!-- REQUEST FOR TESTING -->
       <section class="view" id="view-testing">
-        <p class="lede">Units out on trial with a customer. Filing a request takes the units out of stock right away, like a check-out. Mark them Passed to check them out for delivery, or Returned to put them back in the inventory list.</p>
+        <p class="lede">Units out on trial with a customer. Filing a request takes the units out of stock right away, like a check-out. Mark them Passed to check them out for delivery, Returned to put them back in the inventory list, Incomplete if the test isn't finished, or Defective if the units failed (they stay out of stock).</p>
 
         <div class="block-head">
           <div></div>
@@ -571,7 +571,7 @@
         </div>
 
         <section class="block">
-          <div class="block-head"><h2>Testing requests</h2><span class="hint">on going → passed → check out, or returned to stock</span></div>
+          <div class="block-head"><h2>Testing requests</h2><span class="hint">on going → incomplete / passed / defective / returned — passed goes on to check out</span></div>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Request date</th><th>Customer</th><th>Reference</th><th>Assigned technical</th><th>Item(s)</th><th>Requested by</th><th>Status</th><th>Actions</th></tr></thead>
@@ -580,7 +580,9 @@
           </div>
           <div class="legend">
             <span><i style="background:var(--warn)"></i> On going</span>
+            <span><i style="background:#7c5cd6"></i> Incomplete</span>
             <span><i style="background:var(--good)"></i> Passed</span>
+            <span><i style="background:var(--bad)"></i> Defective</span>
             <span><i style="background:var(--accent)"></i> Checked out to delivery</span>
             <span><i style="background:var(--line)"></i> Returned</span>
           </div>
@@ -606,7 +608,9 @@
         </div>
         <div class="legend">
           <span><i style="background:var(--warn)"></i> On going</span>
+          <span><i style="background:#7c5cd6"></i> Incomplete</span>
           <span><i style="background:var(--good)"></i> Passed</span>
+          <span><i style="background:var(--bad)"></i> Defective</span>
           <span><i style="background:var(--accent)"></i> Checked out to delivery</span>
           <span><i style="background:var(--line)"></i> Returned</span>
         </div>
@@ -734,7 +738,7 @@
           <div class="flow">
             <div class="flow-step flag"><div class="k">04 · gap</div><h3>Trial requested by chat</h3><p>Nothing is filed. Nobody can see which technical has which unit, the PO/RFQ paperwork and PDI sit in inboxes, units aren't deducted, and two people can promise the same unit.</p></div>
             <div class="flow-arrow">→</div>
-            <div class="flow-step flag"><div class="k">05 · gap</div><h3>Trial outcome untracked</h3><p>Passed or returned is remembered, not recorded. Unused units are added back late, or never.</p></div>
+            <div class="flow-step flag"><div class="k">05 · gap</div><h3>Trial outcome untracked</h3><p>Passed, returned, incomplete or defective is remembered, not recorded. Unused units are added back late, or never.</p></div>
           </div>
           <div class="flow-down">↓</div>
           <div class="flow-label">C · Check-out to customer</div>
@@ -763,7 +767,7 @@
           <div class="flow">
             <div class="flow-step fix"><div class="k">04 · fixed</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck with items and serials and an <b>assigned technical</b>. A reference file named after the PO/RFQ no. is required; <i>Reference</i> shows that number. Stock is deducted at once, and duplicate serials are refused. The file is downloaded once in the main system, then removed.</p></div>
             <div class="flow-arrow">→</div>
-            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>, and the <i>Technical Dashboard</i> (main system and Viewing Deck) shows who is testing what. The assigned technical updates the status and uploads the <b>PDI</b> in the Viewing Deck; the main system downloads it once. <b>Passed</b> goes on to check-out. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
+            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>, and the <i>Technical Dashboard</i> (main system and Viewing Deck) shows who is testing what. The assigned technical updates the status and uploads the <b>PDI</b> in the Viewing Deck; the main system downloads it once. <b>Passed</b> goes on to check-out. <b>Incomplete</b> (test not finished) keeps the units out until it is resolved, and <b>Defective</b> keeps them out of stock for good. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
           </div>
           <div class="flow-down">↓</div>
           <div class="flow-label">C · Check-out to customer</div>
@@ -1038,8 +1042,13 @@
     if(r.deliveryId) return '<span class="pill accentpill">Checked out</span>';
     if(r.status === "Passed") return '<span class="pill good">Passed</span>';
     if(r.status === "Returned") return '<span class="pill neutral">Returned</span>';
+    if(r.status === "Incomplete") return '<span class="pill incomplete">Incomplete</span>';
+    if(r.status === "Defective") return '<span class="pill bad">Defective</span>';
     return '<span class="pill warn">On going</span>';
   }
+  // Statuses a test can move to from its current one. Defective is final: the units stay out of stock.
+  var TEST_NEXT = { "On going":["Passed","Incomplete","Defective","Returned"], "Incomplete":["Passed","Defective","Returned"], "Passed":["Returned"] };
+  var TEST_SET_LABEL = { "Passed":"Mark Passed", "Incomplete":"Mark Incomplete", "Defective":"Mark Defective", "Returned":"Mark Returned" };
   // Units are still out of stock and haven't moved on to a delivery.
   function testIsActive(r){ return !r.deliveryId && r.status !== "Returned"; }
   function testReqExists(id){ return !!id && state.testRequests.some(function(t){ return t.id === id; }); }
@@ -1085,10 +1094,13 @@
 
     // Units out for testing = active test requests (On going / Passed, not yet checked out to a
     // delivery) plus any older check-outs logged with the "Internal testing" purpose.
-    var testingRows = [], ongoingUnits = 0, passedUnits = 0, legacyUnits = 0;
+    var testingRows = [], ongoingUnits = 0, passedUnits = 0, incompleteUnits = 0, defectiveUnits = 0, legacyUnits = 0;
     state.testRequests.filter(testIsActive).forEach(function(r){
       var lines = getLines(r), units = sumQty(lines);
-      if(r.status === "Passed") passedUnits += units; else ongoingUnits += units;
+      if(r.status === "Passed") passedUnits += units;
+      else if(r.status === "Incomplete") incompleteUnits += units;
+      else if(r.status === "Defective") defectiveUnits += units;
+      else ongoingUnits += units;
       testingRows.push({date:r.requestDate, customer:r.customer, po:r.po, items:linesLabel(lines), by:r.requestedBy, pill:testPill(r), createdAt:r.createdAt});
     });
     state.deliveries.filter(function(d){ return getPurpose(d) === "Internal Testing"; }).forEach(function(d){
@@ -1096,11 +1108,11 @@
       legacyUnits += sumQty(lines);
       testingRows.push({date:d.date, customer:d.customer, po:d.po, items:linesLabel(lines), by:d.loggedBy, pill:'<span class="pill neutral">Internal check-out</span>', createdAt:d.createdAt});
     });
-    var testingUnits = ongoingUnits + passedUnits + legacyUnits;
+    var testingUnits = ongoingUnits + incompleteUnits + passedUnits + legacyUnits;
     document.getElementById("testingCards").innerHTML =
       '<button type="button" class="dash-card" id="testingCard" aria-pressed="'+testingOpen+'">'+
       '<div class="dc-label">Units out for testing</div><div class="dc-value">'+testingUnits+'</div>'+
-      '<div class="dc-hint">'+ongoingUnits+' on going · '+passedUnits+' passed — click to view</div></button>';
+      '<div class="dc-hint">'+ongoingUnits+' on going · '+incompleteUnits+' incomplete · '+passedUnits+' passed · '+defectiveUnits+' defective — click to view</div></button>';
 
     var testWrap = document.getElementById("testingDetailWrap"), testBody = document.getElementById("testingDetailBody");
     if(testingOpen){
@@ -1274,14 +1286,11 @@
   function testActions(r){
     var btns = "";
     if(!r.deliveryId){
-      if(r.status === "On going"){
-        btns += '<button type="button" class="btn ghost small" data-test-set="Passed" data-test-id="'+esc(r.id)+'">Mark Passed</button>';
-        btns += '<button type="button" class="btn ghost small" data-test-set="Returned" data-test-id="'+esc(r.id)+'">Mark Returned</button>';
-        btns += '<button type="button" class="btn ghost small" data-edit-kind="test" data-edit-id="'+esc(r.id)+'">Edit</button>';
-      } else if(r.status === "Passed"){
-        btns += '<button type="button" class="btn small" data-test-proceed="'+esc(r.id)+'">Proceed to check out</button>';
-        btns += '<button type="button" class="btn ghost small" data-test-set="Returned" data-test-id="'+esc(r.id)+'">Mark Returned</button>';
-      }
+      if(r.status === "Passed") btns += '<button type="button" class="btn small" data-test-proceed="'+esc(r.id)+'">Proceed to check out</button>';
+      (TEST_NEXT[r.status] || []).forEach(function(s){
+        btns += '<button type="button" class="btn ghost small" data-test-set="'+s+'" data-test-id="'+esc(r.id)+'">'+TEST_SET_LABEL[s]+'</button>';
+      });
+      if(r.status === "On going") btns += '<button type="button" class="btn ghost small" data-edit-kind="test" data-edit-id="'+esc(r.id)+'">Edit</button>';
     }
     if(r.attachmentId) btns += '<button type="button" class="btn small" data-test-download="'+esc(r.id)+'">Download file</button>';
     else if(r.attachmentRemovedAt) btns += '<span class="pill neutral" title="Downloaded once and removed from storage">File downloaded</span>';
@@ -1328,13 +1337,16 @@
   function renderTechnical(){
     var reqs = state.testRequests.slice().sort(function(a,b){ return new Date(b.createdAt||0) - new Date(a.createdAt||0); });
     var groups = {};
-    TECHNICALS.forEach(function(t){ groups[t.name] = {units:0, ongoing:0, passed:0, returned:0, out:0}; });
+    var blank = function(){ return {units:0, ongoing:0, incomplete:0, passed:0, defective:0, returned:0, out:0}; };
+    TECHNICALS.forEach(function(t){ groups[t.name] = blank(); });
     reqs.forEach(function(r){
       var n = techName(r);
-      var g = groups[n] = groups[n] || {units:0, ongoing:0, passed:0, returned:0, out:0};
+      var g = groups[n] = groups[n] || blank();
       var u = sumQty(getLines(r));
       if(r.deliveryId){ g.out++; }
       else if(r.status === "Returned"){ g.returned++; }
+      else if(r.status === "Defective"){ g.defective++; }
+      else if(r.status === "Incomplete"){ g.incomplete++; g.units += u; }
       else if(r.status === "Passed"){ g.passed++; g.units += u; }
       else { g.ongoing++; g.units += u; }
     });
@@ -1345,7 +1357,7 @@
       var g = groups[n];
       return '<button type="button" class="dash-card" data-tech="'+esc(n)+'" aria-pressed="'+(techFilter===n)+'">'+
         '<div class="dc-label">'+esc(n)+'</div><div class="dc-value">'+g.units+'</div>'+
-        '<div class="dc-hint">units out · '+g.ongoing+' on going · '+g.passed+' passed · '+g.returned+' returned</div></button>';
+        '<div class="dc-hint">units out · '+g.ongoing+' on going · '+g.incomplete+' incomplete · '+g.passed+' passed · '+g.defective+' defective · '+g.returned+' returned</div></button>';
     }).join("") : '<div class="empty">No test requests yet.</div>';
 
     var q = (document.getElementById("techSearch").value||"").trim().toLowerCase();
@@ -1911,12 +1923,15 @@
 
     async function setTestStatus(id, newStatus){
       var rec = state.testRequests.find(function(t){ return t.id === id; });
-      if(!rec || !db || rec.deliveryId || rec.status === newStatus) return;
+      if(!rec || !db || rec.deliveryId || (TEST_NEXT[rec.status]||[]).indexOf(newStatus) < 0) return;
       var lines = getLines(rec);
-      var ok = await showModal(newStatus === "Returned"
-        ? "Mark this test as Returned?\n"+plainLinesLabel(lines)+" will go back into the inventory list."
-        : "Mark this test as Passed?\n"+plainLinesLabel(lines)+" can then be checked out for delivery.",
-        {yesLabel: newStatus === "Returned" ? "Mark returned" : "Mark passed", yesColor:"var(--accent)"});
+      var confirmText = {
+        "Returned":"Mark this test as Returned?\n"+plainLinesLabel(lines)+" will go back into the inventory list.",
+        "Passed":"Mark this test as Passed?\n"+plainLinesLabel(lines)+" can then be checked out for delivery.",
+        "Incomplete":"Mark this test as Incomplete?\nThe test isn't finished — "+plainLinesLabel(lines)+" stays out of stock and can still be marked Passed, Defective or Returned.",
+        "Defective":"Mark this test as Defective?\n"+plainLinesLabel(lines)+" stays out of stock (it is not added back to the inventory list)."
+      };
+      var ok = await showModal(confirmText[newStatus], {yesLabel:TEST_SET_LABEL[newStatus], yesColor:newStatus === "Defective" ? "var(--bad)" : "var(--accent)"});
       if(!ok) return;
       try{
         var now = new Date().toISOString();
@@ -2231,7 +2246,7 @@
           if(seen[key]) return "Serial number "+s+" is listed twice.";
           seen[key] = true;
           if(it && (it.serials||[]).indexOf(s) > -1 && !ignore[key]) return "Serial number "+s+" is already in stock for "+it.model+".";
-          if(testing[key]) return "Serial number "+s+" is on an open test request ("+testing[key].customer+"). Set that request to Returned instead.";
+          if(testing[key]) return "Serial number "+s+" is on an open test request ("+testing[key].customer+", "+testing[key].status+"). Set that request to Returned instead.";
         }
       }
       return "";
