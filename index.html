@@ -550,7 +550,7 @@
           <form id="testingForm">
             <div class="formgrid">
               <div class="field"><label>Request date</label><input name="date" type="date" required></div>
-              <div class="field"><label>Customer name</label><input name="customer" required placeholder="e.g. Infinivan"></div>
+              <div class="field"><label>Customer name</label><select name="customer" id="testCustomer" required></select><input id="testCustomerNew" name="newCustomer" placeholder="Type the new customer name" hidden style="margin-top:6px;"></div>
               <div class="field"><label>Assigned technical</label><select name="technical" id="testTechnical" required></select></div>
               <div class="field"><label>Reference (attachment)</label><input id="testReference" name="reference" type="file" required accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt,.eml,.msg"><div class="hint" id="testReferenceHint" style="font-size:11.5px;color:var(--muted);margin-top:4px;">Required. Name the file after the PO/RFQ no. (e.g. RFQ-2026-014.pdf). Max 3 MB.</div></div>
               <div class="field"><label>Requested by</label><input id="testRequestedBy" readonly placeholder="Your sign-in email"></div>
@@ -1259,25 +1259,38 @@
     if(mainBadge && deckBadge){ deckBadge.textContent = mainBadge.textContent; deckBadge.className = mainBadge.className; }
   }
 
-  // Duplicate guard: a serial that's already on another test request (anything not Returned,
-  // including ones checked out to a delivery) can't be requested again. `ignoreId` is the
-  // request being edited, so it doesn't conflict with itself.
+  // Duplicate guard: a serial number that has already been used can't be requested again. That means it is
+  // on another test request (anything not Returned, including ones checked out), it already went out on a
+  // Delivery Tracker check-out, or it isn't in the stock record for that item. `ignoreId` is the request
+  // being edited, so its own units don't conflict with themselves.
+  function serialKey(s){ return String(s).trim().toLowerCase(); }
   function findTestSerialConflict(lines, ignoreId){
-    var taken = {};
+    var taken = {}, mine = {};
     state.testRequests.forEach(function(r){
-      if(r.id === ignoreId || r.status === "Returned") return;
+      if(r.id === ignoreId){ getLines(r).forEach(function(l){ (l.serials||[]).forEach(function(s){ mine[l.itemId+"|"+serialKey(s)] = true; }); }); return; }
+      if(r.status === "Returned") return;
       getLines(r).forEach(function(l){
-        (l.serials||[]).forEach(function(s){ taken[l.itemId+"|"+s] = r; });
+        (l.serials||[]).forEach(function(s){ taken[l.itemId+"|"+serialKey(s)] = r; });
       });
+    });
+    var shipped = {};
+    state.deliveries.forEach(function(d){
+      getLines(d).forEach(function(l){ (l.serials||[]).forEach(function(s){ shipped[l.itemId+"|"+serialKey(s)] = d; }); });
     });
     var seen = {};
     for(var i=0;i<lines.length;i++){
+      var it = state.inventory.find(function(x){ return x.id === lines[i].itemId; });
+      var inStock = {}; (it && it.serials || []).forEach(function(s){ inStock[serialKey(s)] = true; });
       for(var j=0;j<lines[i].serials.length;j++){
-        var s = lines[i].serials[j], key = lines[i].itemId+"|"+s;
+        var s = lines[i].serials[j], k = serialKey(s), key = lines[i].itemId+"|"+k;
         if(seen[key]) return "Serial number "+s+" is listed twice in this request.";
         seen[key] = true;
         var r = taken[key];
-        if(r) return "Serial number "+s+" is already on a test request ("+r.customer+", "+(r.po||"no reference")+" — "+(r.deliveryId ? "Checked out" : r.status)+"). Check the list below before filing again.";
+        if(r) return "Serial number "+s+" has already been used — it is on a test request ("+r.customer+", "+(r.po||"no reference")+" — "+(r.deliveryId ? "Checked out" : r.status)+"). The request was not filed.";
+        if(inStock[k] || mine[key]) continue;
+        var d = shipped[key];
+        if(d) return "Serial number "+s+" has already been used — it was checked out to "+d.customer+(d.po ? " ("+d.po+")" : "")+" in the Delivery Tracker. The request was not filed.";
+        if(it && (it.serials||[]).length) return "Serial number "+s+" isn't in stock for "+it.model+" — it has already gone out or the number is wrong. The request was not filed.";
       }
     }
     return "";
@@ -1298,6 +1311,39 @@
     return '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+btns+'</div>';
   }
 
+  // Customer dropdown for a test request: the customers already in the Delivery Tracker (plus any added on
+  // earlier test requests), and an "Add new customer" option that reveals a text box.
+  var NEW_CUSTOMER = "__new__";
+  function customerNames(extra){
+    var seen = {}, out = [];
+    state.deliveries.concat(state.testRequests).concat(extra ? [{customer:extra}] : []).forEach(function(x){
+      var n = String(x.customer||"").trim(), k = n.toLowerCase();
+      if(n && !seen[k]){ seen[k] = true; out.push(n); }
+    });
+    return out.sort(function(a,b){ return a.localeCompare(b, undefined, {sensitivity:"base"}); });
+  }
+  function toggleNewCustomer(){
+    var isNew = document.getElementById("testCustomer").value === NEW_CUSTOMER, inp = document.getElementById("testCustomerNew");
+    inp.hidden = !isNew; inp.required = isNew;
+    if(!isNew) inp.value = "";
+  }
+  function fillCustomerSelect(current){
+    var sel = document.getElementById("testCustomer");
+    var keep = current != null ? current : sel.value;
+    sel.innerHTML = '<option value="">Select customer…</option>' +
+      customerNames(keep && keep !== NEW_CUSTOMER ? keep : "").map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join("") +
+      '<option value="'+NEW_CUSTOMER+'">+ Add new customer…</option>';
+    sel.value = keep || "";
+    toggleNewCustomer();
+  }
+  // The chosen customer's name; a typed new name that matches an existing customer reuses that spelling.
+  function chosenCustomer(){
+    var v = document.getElementById("testCustomer").value;
+    if(v !== NEW_CUSTOMER) return v;
+    var typed = document.getElementById("testCustomerNew").value.trim().replace(/\s+/g, " ");
+    var match = customerNames().filter(function(n){ return n.toLowerCase() === typed.toLowerCase(); })[0];
+    return match || typed;
+  }
   function fillTechnicalSelect(current){
     var sel = document.getElementById("testTechnical");
     var names = TECHNICALS.map(function(t){ return t.name; });
@@ -1307,6 +1353,7 @@
     sel.value = current || "";
   }
   function renderTesting(){
+    fillCustomerSelect();
     document.querySelectorAll('#testLines select.line-item').forEach(function(s){ fillItemSelect(s, true); });
     var by = document.getElementById("testRequestedBy");
     if(by){ by.defaultValue = currentUserEmail(); if(!editingTestId) by.value = currentUserEmail(); }
@@ -1905,7 +1952,7 @@
       var form = document.getElementById("testingForm");
       var lines = getLines(rec);
       form.elements.date.value = rec.requestDate||"";
-      form.elements.customer.value = rec.customer||"";
+      fillCustomerSelect(rec.customer||"");
       fillTechnicalSelect(rec.technical||"");
       form.elements.reference.value = "";
       form.elements.reference.required = false;
@@ -2390,9 +2437,13 @@
       syncBudgetFields();
     });
 
+    document.getElementById("testCustomer").addEventListener("change", toggleNewCustomer);
+    document.getElementById("testingForm").addEventListener("reset", function(){ setTimeout(function(){ fillCustomerSelect(""); }, 0); });
     wireForm("testingForm","testingFormMsg", async function(data, msg){
       var email = currentUserEmail();
       if(!email){ msg.textContent = "Couldn't read your sign-in email — sign in again and retry."; msg.className = "formmsg err"; return false; }
+      var customer = chosenCustomer();
+      if(!customer){ msg.textContent = "Pick a customer, or add a new one."; msg.className = "formmsg err"; return false; }
       var lines = readLines("testLines", msg);
       if(!lines) return false;
 
@@ -2439,7 +2490,7 @@
 
       var now = new Date().toISOString();
       var payload = {
-        requestDate:data.date, customer:data.customer.trim(), technical:(data.technical||"").trim(), technicalEmail:technicalEmailFor((data.technical||"").trim()) || (old && old.technical === (data.technical||"").trim() ? (old.technicalEmail||"") : ""),
+        requestDate:data.date, customer:customer, technical:(data.technical||"").trim(), technicalEmail:technicalEmailFor((data.technical||"").trim()) || (old && old.technical === (data.technical||"").trim() ? (old.technicalEmail||"") : ""),
         lines:resolved,
         updatedAt:now
       };

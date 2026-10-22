@@ -145,6 +145,12 @@ typed name or "Unassigned".
 - The technicals list is in `TECHNICALS` near the top of the script in both
   `index.html` files — edit both to add or rename people.
 
+- **Customer dropdown:** the customer is picked from a list made of the customers already in the Delivery Tracker
+  (plus any added on earlier test requests). Choose **+ Add new customer…** to type a new name; it then appears
+  in the list for everyone. A typed name that matches an existing customer (ignoring capitals) reuses that spelling.
+- **Serial numbers can only be used once:** a request is refused (and nothing is taken out of stock) if a serial
+  is on another request that is not Returned, was already checked out in the Delivery Tracker, or is not in the
+  item's stock record. Capitals and spaces are ignored. Returned units become usable again.
 - **No duplicates:** a serial number that's already on another request
   (On going, Passed, or Checked out) can't be requested again, and the same
   serial can't appear twice in one request. Returned units are free again.
