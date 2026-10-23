@@ -574,8 +574,8 @@
           <div class="block-head"><h2>Testing requests</h2><span class="hint">on going → incomplete / passed / defective / returned — passed goes on to check out</span></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Request date</th><th>Customer</th><th>Reference</th><th>Assigned technical</th><th>Item(s)</th><th>Requested by</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="testingBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+              <thead><tr><th>Request date</th><th>Customer</th><th>Reference</th><th>Assigned technical</th><th>Item(s)</th><th>Requested by</th><th>Actions</th></tr></thead>
+              <tbody id="testingBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
             </table>
           </div>
           <div class="legend">
@@ -602,8 +602,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Assigned technical</th><th>Customer</th><th>Item</th><th>Qty</th><th>Serial no.</th><th>Testing status</th><th>PDI</th></tr></thead>
-            <tbody id="techBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+            <thead><tr><th>Assigned technical</th><th>Customer</th><th>Reference</th><th>Item</th><th>Qty</th><th>Serial no.</th><th>Testing status</th><th>PDI</th></tr></thead>
+            <tbody id="techBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
           </table>
         </div>
         <div class="legend">
@@ -765,9 +765,9 @@
           <div class="flow-down">↓</div>
           <div class="flow-label">B · Request for testing (when a customer wants a trial)</div>
           <div class="flow">
-            <div class="flow-step fix"><div class="k">04 · fixed</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck with items and serials and an <b>assigned technical</b>. A reference file named after the PO/RFQ no. is required; <i>Reference</i> shows that number. Stock is deducted at once, and duplicate serials are refused. The file is downloaded once in the main system, then removed.</p></div>
+            <div class="flow-step fix"><div class="k">04 · fixed</div><h3>Request for Testing</h3><p>Filed in the system or the Viewing Deck with items and serials and an <b>assigned technical</b>. A reference file named after the PO/RFQ no. is required; <i>Reference</i> shows that number. Stock is deducted at once, and duplicate serials are refused. The file can be downloaded twice — once in the main system, once by the assigned technical on the Technical Dashboard — then it is removed.</p></div>
             <div class="flow-arrow">→</div>
-            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>, and the <i>Technical Dashboard</i> (main system and Viewing Deck) shows who is testing what. The assigned technical updates the status and uploads the <b>PDI</b> in the Viewing Deck; the main system downloads it once. <b>Passed</b> goes on to check-out. <b>Incomplete</b> (test not finished) keeps the units out until it is resolved, and <b>Defective</b> keeps them out of stock for good. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
+            <div class="flow-step fix"><div class="k">05 · fixed</div><h3>Testing outcome</h3><p><b>On going</b> counts under <i>Units out for testing</i>, and the <i>Technical Dashboard</i> (main system and Viewing Deck) shows who is testing what. The assigned technical updates the status <b>of each item</b> and uploads the <b>PDI</b> in the Viewing Deck; the main system downloads it once. <b>Passed</b> items go on to check-out (each item has its own status). <b>Incomplete</b> (test not finished) keeps the units out until it is resolved, and <b>Defective</b> keeps them out of stock for good. <b>Returned</b> puts the units back in stock; any unused units come back through <i>Return units</i> in the Warehouse Log.</p></div>
           </div>
           <div class="flow-down">↓</div>
           <div class="flow-label">C · Check-out to customer</div>
@@ -879,7 +879,7 @@
   var logFilter = null, deckLogFilter = null, testingOpen = false;
   var checkinMode = "single", checkoutMode = "single", testMode = "single";
   var editingItemId = null, editingCheckinId = null, editingDeliveryId = null;
-  var editingTestId = null, pendingTestRequestId = null;
+  var editingTestId = null, pendingTestRequestId = null, pendingTestLines = [];
   var editingReturnId = null, returnMode = "single";
 
   // The technicals who can be assigned to a test request. They can upload the PDI and change the testing status
@@ -1038,19 +1038,30 @@
   // Fields on the request record for the Reference file and the PDI file.
   function attachmentFields(f){ return { attachmentId:f.id, attachmentChunks:f.chunks, attachmentName:f.name, attachmentType:f.type, attachmentSize:f.size }; }
   async function saveAttachment(file){ return attachmentFields(await storeFile(file)); }
-  function testPill(r){
-    if(r.deliveryId) return '<span class="pill accentpill">Checked out</span>';
-    if(r.status === "Passed") return '<span class="pill good">Passed</span>';
-    if(r.status === "Returned") return '<span class="pill neutral">Returned</span>';
-    if(r.status === "Incomplete") return '<span class="pill incomplete">Incomplete</span>';
-    if(r.status === "Defective") return '<span class="pill bad">Defective</span>';
-    return '<span class="pill warn">On going</span>';
+  // ---- Testing status is kept per line item (each item/units line of a request has its own status) ----
+  var STATUS_PILL = { "Passed":"good", "Returned":"neutral", "Incomplete":"incomplete", "Defective":"bad", "On going":"warn" };
+  function statusPill(s){ return '<span class="pill '+(STATUS_PILL[s] || "warn")+'">'+esc(s || "On going")+'</span>'; }
+  // Requests filed before per-line status existed carry one status for the whole request; lines fall back to it.
+  function lineStatus(r, l){ return l.status || r.status || "On going"; }
+  // Delivery id once a line has been checked out (older requests recorded it on the request itself).
+  function lineOut(r, l){ return l.deliveryId || r.deliveryId || ""; }
+  function linePill(r, l){ return lineOut(r, l) ? '<span class="pill accentpill">Checked out</span>' : statusPill(lineStatus(r, l)); }
+  function lineShown(r, l){ return lineOut(r, l) ? "Checked out" : lineStatus(r, l); }
+  // Units are still out of stock and haven't moved on to a delivery.
+  function lineHoldsStock(r, l){ return !lineOut(r, l) && lineStatus(r, l) !== "Returned"; }
+  function testHoldsStock(r){ return getLines(r).some(function(l){ return lineHoldsStock(r, l); }); }
+  // One status for the whole request (stored as `status` for older readers; the lines are the real record).
+  function rollupStatus(lines){
+    var s = lines.map(function(l){ return l.status || "On going"; });
+    var order = ["On going", "Incomplete", "Passed", "Defective", "Returned"];
+    for(var i=0;i<order.length;i++) if(s.indexOf(order[i]) > -1) return order[i];
+    return "On going";
   }
-  // Statuses a test can move to from its current one. Defective is final: the units stay out of stock.
+  // Statuses a line can move to from its current one. Defective is final: the units stay out of stock.
   var TEST_NEXT = { "On going":["Passed","Incomplete","Defective","Returned"], "Incomplete":["Passed","Defective","Returned"], "Passed":["Returned"] };
   var TEST_SET_LABEL = { "Passed":"Mark Passed", "Incomplete":"Mark Incomplete", "Defective":"Mark Defective", "Returned":"Mark Returned" };
-  // Units are still out of stock and haven't moved on to a delivery.
-  function testIsActive(r){ return !r.deliveryId && r.status !== "Returned"; }
+  // Who may still download the Reference file: the main system once, the assigned technical once.
+  function hasTechnician(r){ return !!(r.technicalEmail || technicalEmailFor((r.technical||"").trim())); }
   function testReqExists(id){ return !!id && state.testRequests.some(function(t){ return t.id === id; }); }
   function sumQty(lines){ return lines.reduce(function(s,l){ return s + (parseInt(l.qty,10)||0); }, 0); }
 
@@ -1095,13 +1106,16 @@
     // Units out for testing = active test requests (On going / Passed, not yet checked out to a
     // delivery) plus any older check-outs logged with the "Internal testing" purpose.
     var testingRows = [], ongoingUnits = 0, passedUnits = 0, incompleteUnits = 0, defectiveUnits = 0, legacyUnits = 0;
-    state.testRequests.filter(testIsActive).forEach(function(r){
-      var lines = getLines(r), units = sumQty(lines);
-      if(r.status === "Passed") passedUnits += units;
-      else if(r.status === "Incomplete") incompleteUnits += units;
-      else if(r.status === "Defective") defectiveUnits += units;
-      else ongoingUnits += units;
-      testingRows.push({date:r.requestDate, customer:r.customer, po:r.po, items:linesLabel(lines), by:r.requestedBy, pill:testPill(r), createdAt:r.createdAt});
+    state.testRequests.forEach(function(r){
+      getLines(r).forEach(function(l){
+        if(!lineHoldsStock(r, l)) return;
+        var units = parseInt(l.qty,10)||0, st = lineStatus(r, l);
+        if(st === "Passed") passedUnits += units;
+        else if(st === "Incomplete") incompleteUnits += units;
+        else if(st === "Defective") defectiveUnits += units;
+        else ongoingUnits += units;
+        testingRows.push({date:r.requestDate, customer:r.customer, po:r.po, items:linesLabel([l]), by:r.requestedBy, pill:linePill(r, l), createdAt:r.createdAt});
+      });
     });
     state.deliveries.filter(function(d){ return getPurpose(d) === "Internal Testing"; }).forEach(function(d){
       var lines = getLines(d);
@@ -1268,9 +1282,9 @@
     var taken = {}, mine = {};
     state.testRequests.forEach(function(r){
       if(r.id === ignoreId){ getLines(r).forEach(function(l){ (l.serials||[]).forEach(function(s){ mine[l.itemId+"|"+serialKey(s)] = true; }); }); return; }
-      if(r.status === "Returned") return;
       getLines(r).forEach(function(l){
-        (l.serials||[]).forEach(function(s){ taken[l.itemId+"|"+serialKey(s)] = r; });
+        if(lineStatus(r, l) === "Returned") return;
+        (l.serials||[]).forEach(function(s){ taken[l.itemId+"|"+serialKey(s)] = { r:r, l:l }; });
       });
     });
     var shipped = {};
@@ -1285,8 +1299,8 @@
         var s = lines[i].serials[j], k = serialKey(s), key = lines[i].itemId+"|"+k;
         if(seen[key]) return "Serial number "+s+" is listed twice in this request.";
         seen[key] = true;
-        var r = taken[key];
-        if(r) return "Serial number "+s+" has already been used — it is on a test request ("+r.customer+", "+(r.po||"no reference")+" — "+(r.deliveryId ? "Checked out" : r.status)+"). The request was not filed.";
+        var t = taken[key];
+        if(t) return "Serial number "+s+" has already been used — it is on a test request ("+t.r.customer+", "+(t.r.po||"no reference")+" — "+lineShown(t.r, t.l)+"). The request was not filed.";
         if(inStock[k] || mine[key]) continue;
         var d = shipped[key];
         if(d) return "Serial number "+s+" has already been used — it was checked out to "+d.customer+(d.po ? " ("+d.po+")" : "")+" in the Delivery Tracker. The request was not filed.";
@@ -1296,17 +1310,23 @@
     return "";
   }
 
+  // Status buttons for one line item (hidden once that line has been checked out).
+  function lineButtons(r, l, idx){
+    if(lineOut(r, l)) return "";
+    return (TEST_NEXT[lineStatus(r, l)] || []).map(function(s){
+      return '<button type="button" class="btn ghost small" data-test-set="'+s+'" data-test-id="'+esc(r.id)+'" data-test-line="'+idx+'">'+TEST_SET_LABEL[s]+'</button>';
+    }).join("");
+  }
   function testActions(r){
-    var btns = "";
-    if(!r.deliveryId){
-      if(r.status === "Passed") btns += '<button type="button" class="btn small" data-test-proceed="'+esc(r.id)+'">Proceed to check out</button>';
-      (TEST_NEXT[r.status] || []).forEach(function(s){
-        btns += '<button type="button" class="btn ghost small" data-test-set="'+s+'" data-test-id="'+esc(r.id)+'">'+TEST_SET_LABEL[s]+'</button>';
-      });
-      if(r.status === "On going") btns += '<button type="button" class="btn ghost small" data-edit-kind="test" data-edit-id="'+esc(r.id)+'">Edit</button>';
-    }
-    if(r.attachmentId) btns += '<button type="button" class="btn small" data-test-download="'+esc(r.id)+'">Download file</button>';
-    else if(r.attachmentRemovedAt) btns += '<span class="pill neutral" title="Downloaded once and removed from storage">File downloaded</span>';
+    var btns = "", lines = getLines(r);
+    if(lines.some(function(l){ return !lineOut(r, l) && lineStatus(r, l) === "Passed"; }))
+      btns += '<button type="button" class="btn small" data-test-proceed="'+esc(r.id)+'">Proceed to check out</button>';
+    if(lines.every(function(l){ return !lineOut(r, l) && lineStatus(r, l) === "On going"; }))
+      btns += '<button type="button" class="btn ghost small" data-edit-kind="test" data-edit-id="'+esc(r.id)+'">Edit</button>';
+    // The Reference file: one download here, one by the assigned technical (Viewing Deck), then it is deleted.
+    if(r.attachmentId && !r.attachmentMainDownloadedAt) btns += '<button type="button" class="btn small" data-test-download="'+esc(r.id)+'">Download file</button>';
+    else if(r.attachmentId) btns += '<span class="pill neutral" title="You have downloaded it. It is deleted once the assigned technical has downloaded it too.">Downloaded — waiting for technical</span>';
+    else if(r.attachmentRemovedAt) btns += '<span class="pill neutral" title="Downloaded and removed from storage">File downloaded</span>';
     btns += '<button type="button" class="btn ghost small" data-del-kind="test" data-del-id="'+esc(r.id)+'" style="color:var(--bad);border-color:var(--bad);">Delete</button>';
     return '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+btns+'</div>';
   }
@@ -1359,15 +1379,15 @@
     if(by){ by.defaultValue = currentUserEmail(); if(!editingTestId) by.value = currentUserEmail(); }
     var rows = state.testRequests.slice().sort(function(a,b){ return new Date(b.createdAt||0) - new Date(a.createdAt||0); });
     document.getElementById("testingBody").innerHTML = rows.length ? rows.map(function(r){
-      var lines = getLines(r);
-      var itemsCell = lines.map(function(l){
-        var s = (l.serials||[]).join(", ");
-        return '<div>'+esc(itemLabelOf(l.itemId))+' ×'+esc(l.qty)+(s?'<div class="il-serials">'+esc(s)+'</div>':'')+'</div>';
+      var itemsCell = getLines(r).map(function(l, idx){
+        var s = (l.serials||[]).join(", "), b = lineButtons(r, l, idx);
+        return '<div style="margin-bottom:8px;">'+esc(itemLabelOf(l.itemId))+' ×'+esc(l.qty)+' '+linePill(r, l)+(s?'<div class="il-serials">'+esc(s)+'</div>':'')+
+          (b ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">'+b+'</div>' : '')+'</div>';
       }).join("");
       return '<tr><td>'+esc(fmtDate(r.requestDate))+'</td><td>'+esc(r.customer)+'</td><td class="mono">'+esc(r.po||"—")+'</td>'+
         '<td>'+esc(r.technical||"—")+'</td><td>'+itemsCell+'</td>'+
-        '<td>'+esc(r.requestedBy||"—")+'</td><td>'+testPill(r)+'</td><td>'+testActions(r)+'</td></tr>';
-    }).join("") : '<tr><td colspan="8" class="empty">No test requests filed yet.</td></tr>';
+        '<td>'+esc(r.requestedBy||"—")+'</td><td>'+testActions(r)+'</td></tr>';
+    }).join("") : '<tr><td colspan="7" class="empty">No test requests filed yet.</td></tr>';
   }
 
   var techFilter = null;
@@ -1389,13 +1409,15 @@
     reqs.forEach(function(r){
       var n = techName(r);
       var g = groups[n] = groups[n] || blank();
-      var u = sumQty(getLines(r));
-      if(r.deliveryId){ g.out++; }
-      else if(r.status === "Returned"){ g.returned++; }
-      else if(r.status === "Defective"){ g.defective++; }
-      else if(r.status === "Incomplete"){ g.incomplete++; g.units += u; }
-      else if(r.status === "Passed"){ g.passed++; g.units += u; }
-      else { g.ongoing++; g.units += u; }
+      getLines(r).forEach(function(l){
+        var u = parseInt(l.qty,10)||0, st = lineStatus(r, l);
+        if(lineOut(r, l)) g.out += u;
+        else if(st === "Returned") g.returned += u;
+        else if(st === "Defective") g.defective += u;
+        else if(st === "Incomplete"){ g.incomplete += u; g.units += u; }
+        else if(st === "Passed"){ g.passed += u; g.units += u; }
+        else { g.ongoing += u; g.units += u; }
+      });
     });
     var order = TECHNICALS.map(function(t){ return t.name; });
     var names = Object.keys(groups).sort(function(a,b){ var ia = order.indexOf(a), ib = order.indexOf(b); if(ia > -1 && ib > -1) return ia - ib; if(ia > -1) return -1; if(ib > -1) return 1; return a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : a.localeCompare(b); });
@@ -1413,20 +1435,20 @@
       if(techFilter && techName(r) !== techFilter) return;
       var lines = getLines(r);
       if(q){
-        var hay = [techName(r), r.customer, r.po, r.deliveryId ? "checked out" : r.status];
-        lines.forEach(function(l){ hay.push(itemLabelOf(l.itemId)); hay = hay.concat(l.serials||[]); });
+        var hay = [techName(r), r.customer, r.po];
+        lines.forEach(function(l){ hay.push(itemLabelOf(l.itemId), lineShown(r, l)); hay = hay.concat(l.serials||[]); });
         if(hay.join(" ").toLowerCase().indexOf(q) < 0) return;
       }
       var span = Math.max(lines.length, 1);
       lines.forEach(function(l, i){
         html += '<tr>';
-        if(i === 0) html += '<td rowspan="'+span+'">'+esc(techName(r))+'</td><td rowspan="'+span+'">'+esc(r.customer)+'</td>';
-        html += '<td>'+esc(itemLabelOf(l.itemId))+'</td><td>'+esc(l.qty)+'</td><td class="mono">'+esc((l.serials||[]).join(", ")||"—")+'</td>';
-        if(i === 0) html += '<td rowspan="'+span+'">'+testPill(r)+'</td><td rowspan="'+span+'">'+pdiCell(r)+'</td>';
+        if(i === 0) html += '<td rowspan="'+span+'">'+esc(techName(r))+'</td><td rowspan="'+span+'">'+esc(r.customer)+'</td><td rowspan="'+span+'" class="mono">'+esc(r.po||"—")+'</td>';
+        html += '<td>'+esc(itemLabelOf(l.itemId))+'</td><td>'+esc(l.qty)+'</td><td class="mono">'+esc((l.serials||[]).join(", ")||"—")+'</td><td>'+linePill(r, l)+'</td>';
+        if(i === 0) html += '<td rowspan="'+span+'">'+pdiCell(r)+'</td>';
         html += '</tr>';
       });
     });
-    document.getElementById("techBody").innerHTML = html || '<tr><td colspan="7" class="empty">'+(q || techFilter ? "No matches." : "No test requests filed yet.")+'</td></tr>';
+    document.getElementById("techBody").innerHTML = html || '<tr><td colspan="8" class="empty">'+(q || techFilter ? "No matches." : "No test requests filed yet.")+'</td></tr>';
   }
 
   function renderReturns(){
@@ -1916,7 +1938,14 @@
       try{
         if(editingDeliveryId === id) exitDeliveryEdit();
         if(fromTest){
-          await db.doc("test_requests/"+fromTest).update({deliveryId:"", updatedAt:new Date().toISOString()});
+          var tsnap2 = await db.doc("test_requests/"+fromTest).get();
+          if(tsnap2.exists){
+            var tr2 = tsnap2.data();
+            var back = getLines(tr2).map(function(x){ var o = Object.assign({}, x, {status:lineStatus(tr2, x)}); if(x.deliveryId === id) o.deliveryId = ""; return o; });
+            var upd2 = {lines:back, status:rollupStatus(back), updatedAt:new Date().toISOString()};
+            if(tr2.deliveryId === id) upd2.deliveryId = "";
+            await db.doc("test_requests/"+fromTest).update(upd2);
+          }
         } else {
           for(var i=0;i<lines.length;i++){
             var l = lines[i];
@@ -1968,33 +1997,44 @@
       document.getElementById("testingFormCard").scrollIntoView({block:"center"});
     }
 
-    async function setTestStatus(id, newStatus){
-      var rec = state.testRequests.find(function(t){ return t.id === id; });
-      if(!rec || !db || rec.deliveryId || (TEST_NEXT[rec.status]||[]).indexOf(newStatus) < 0) return;
-      var lines = getLines(rec);
-      var confirmText = {
-        "Returned":"Mark this test as Returned?\n"+plainLinesLabel(lines)+" will go back into the inventory list.",
-        "Passed":"Mark this test as Passed?\n"+plainLinesLabel(lines)+" can then be checked out for delivery.",
-        "Incomplete":"Mark this test as Incomplete?\nThe test isn't finished — "+plainLinesLabel(lines)+" stays out of stock and can still be marked Passed, Defective or Returned.",
-        "Defective":"Mark this test as Defective?\n"+plainLinesLabel(lines)+" stays out of stock (it is not added back to the inventory list)."
-      };
-      var ok = await showModal(confirmText[newStatus], {yesLabel:TEST_SET_LABEL[newStatus], yesColor:newStatus === "Defective" ? "var(--bad)" : "var(--accent)"});
-      if(!ok) return;
+    // Status is set per line item. The request is re-read first so two people changing different lines
+    // of one request don't overwrite each other.
+    async function setTestStatus(id, idx, newStatus){
+      if(!db) return;
       try{
+        var snap = await db.doc("test_requests/"+id).get();
+        if(!snap.exists) throw new Error("That request no longer exists.");
+        var rec = snap.data(), l = getLines(rec)[idx];
+        if(!l) return;
+        if(lineOut(rec, l)) throw new Error("This item has already been checked out to a delivery.");
+        var cur = lineStatus(rec, l);
+        if((TEST_NEXT[cur]||[]).indexOf(newStatus) < 0) throw new Error("This item is "+cur+" and can't be marked "+newStatus+".");
+        var label = plainLinesLabel([l]);
+        var confirmText = {
+          "Returned":"Mark this item as Returned?\n"+label+" will go back into the inventory list.",
+          "Passed":"Mark this item as Passed?\n"+label+" can then be checked out for delivery.",
+          "Incomplete":"Mark this item as Incomplete?\nThe test isn't finished — "+label+" stays out of stock and can still be marked Passed, Defective or Returned.",
+          "Defective":"Mark this item as Defective?\n"+label+" stays out of stock (it is not added back to the inventory list)."
+        };
+        var ok = await showModal(confirmText[newStatus], {yesLabel:TEST_SET_LABEL[newStatus], yesColor:newStatus === "Defective" ? "var(--bad)" : "var(--accent)"});
+        if(!ok) return;
+        var fsnap = await db.doc("test_requests/"+id).get();
+        if(!fsnap.exists) throw new Error("That request no longer exists.");
+        var fresh = fsnap.data(), fl = getLines(fresh);
+        if(!fl[idx] || lineOut(fresh, fl[idx]) || lineStatus(fresh, fl[idx]) !== cur) throw new Error("Someone else just changed this item — check the list and try again.");
         var now = new Date().toISOString();
-        var upd = {status:newStatus, statusHistory:(rec.statusHistory||[]).concat([{status:newStatus, at:now}]), updatedAt:now};
-        if(newStatus === "Returned"){
-          for(var i=0;i<lines.length;i++){
-            await adjustStock(lines[i].itemId, (parseInt(lines[i].qty,10)||0), lines[i].serials||[], []);
-          }
-          upd.returnedAt = now;
-        }
+        if(newStatus === "Returned") await adjustStock(l.itemId, (parseInt(l.qty,10)||0), l.serials||[], []);
+        var newLines = fl.map(function(x, i){ return Object.assign({}, x, {status: i === idx ? newStatus : lineStatus(fresh, x)}); });
+        var upd = {lines:newLines, status:rollupStatus(newLines), updatedAt:now,
+          statusHistory:(fresh.statusHistory||[]).concat([{status:newStatus, line:idx, item:itemLabelOf(l.itemId), at:now, by:currentUserEmail()}])};
+        if(newStatus === "Returned") upd.returnedAt = now;
         await db.doc("test_requests/"+id).update(upd);
       }catch(err){ alertDialog("Couldn't update: " + (err && err.message ? err.message : "try again.")); }
     }
 
-    // One-time download: the file is read, saved to the user's computer, then removed from the database.
-    // kind: "attachment" (the Reference file) or "pdi". The prefix names the record fields.
+    // The Reference file can be downloaded twice: once here (main system) and once by the assigned technical
+    // on the Technical Dashboard (Viewing Deck). After the second download — or after this one when no technical
+    // is assigned — it is deleted. The PDI is a single download. `kind` is "attachment" or "pdi".
     async function downloadTestFile(id, kind){
       if(!db) return;
       kind = kind === "pdi" ? "pdi" : "attachment";
@@ -2003,7 +2043,11 @@
       var snap = await db.doc("test_requests/"+id).get();
       var rec = snap.exists ? snap.data() : null;
       if(!rec || !rec[F.id]){ alertDialog("This "+label+" has already been downloaded and removed."); return; }
-      var ok = await showModal("Download "+rec[F.name]+"?\nIt can only be downloaded once — the "+label+" is removed from the system afterwards, so keep your copy.", {yesLabel:"Download", yesColor:"var(--accent)"});
+      var shared = kind === "attachment" && hasTechnician(rec);
+      if(kind === "attachment" && rec.attachmentMainDownloadedAt){ alertDialog("The main system has already downloaded this file."); return; }
+      var ok = await showModal("Download "+rec[F.name]+"?\n"+(shared
+        ? "The main system can download it once, and so can the assigned technical ("+(rec.technical||"")+"). It is removed from the system after both have downloaded it — keep your copy."
+        : "It can only be downloaded once — the "+label+" is removed from the system afterwards, so keep your copy."), {yesLabel:"Download", yesColor:"var(--accent)"});
       if(!ok) return;
       try{
         var parts = [];
@@ -2019,9 +2063,15 @@
         a.href = url; a.download = rec[F.name] || kind;
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+        var now = new Date().toISOString();
+        if(shared){
+          await db.doc("test_requests/"+id).update({ attachmentMainDownloadedAt:now, attachmentMainDownloadedBy:currentUserEmail(), updatedAt:now });
+          var again = (await db.doc("test_requests/"+id).get()).data();
+          if(!again || !again.attachmentTechDownloadedAt) return; // keep it for the technical's download
+        }
         await deleteAttachment(rec[F.id], rec[F.chunks]);
-        var upd = { updatedAt:new Date().toISOString() };
-        upd[F.id] = ""; upd[F.chunks] = 0; upd[kind+"RemovedAt"] = new Date().toISOString(); upd[kind+"DownloadedBy"] = currentUserEmail();
+        var upd = { updatedAt:now };
+        upd[F.id] = ""; upd[F.chunks] = 0; upd[kind+"RemovedAt"] = now; upd[kind+"DownloadedBy"] = currentUserEmail();
         await db.doc("test_requests/"+id).update(upd);
       }catch(err){ alertDialog("Couldn't download: " + (err && err.message ? err.message : "try again.")); }
     }
@@ -2030,21 +2080,21 @@
       var rec = state.testRequests.find(function(t){ return t.id === id; });
       if(!rec || !db) return;
       var lines = getLines(rec);
-      var holdsStock = testIsActive(rec);
-      var ok = await confirmDialog(holdsStock
-        ? "Delete this test request?\n"+plainLinesLabel(lines)+" will be added back into stock.\nThis cannot be undone."
-        : "Delete this test request?\nStock isn't changed — these units are "+(rec.deliveryId ? "already on a delivery" : "already back in the inventory list")+".\nThis cannot be undone.");
+      var holding = lines.filter(function(l){ return lineHoldsStock(rec, l); });
+      var outIds = {}; lines.forEach(function(l){ if(lineOut(rec, l)) outIds[lineOut(rec, l)] = true; });
+      var ok = await confirmDialog(holding.length
+        ? "Delete this test request?\n"+plainLinesLabel(holding)+" will be added back into stock"+(holding.length < lines.length ? " (the other items are already back in stock or on a delivery)" : "")+".\nThis cannot be undone."
+        : "Delete this test request?\nStock isn't changed — these units are "+(Object.keys(outIds).length ? "already on a delivery or back in the inventory list" : "already back in the inventory list")+".\nThis cannot be undone.");
       if(!ok) return;
       try{
         if(editingTestId === id) exitTestEdit();
-        if(holdsStock){
-          for(var i=0;i<lines.length;i++){
-            await adjustStock(lines[i].itemId, (parseInt(lines[i].qty,10)||0), lines[i].serials||[], []);
-          }
+        for(var i=0;i<holding.length;i++){
+          await adjustStock(holding[i].itemId, (parseInt(holding[i].qty,10)||0), holding[i].serials||[], []);
         }
-        if(rec.deliveryId){
-          // The delivery becomes an ordinary one, so deleting/editing it later handles stock normally.
-          try{ await db.doc("deliveries/"+rec.deliveryId).update({fromTestRequestId:""}); }catch(e){ /* delivery already gone */ }
+        // Deliveries made from this request become ordinary ones, so deleting/editing them later handles stock normally.
+        var dids = Object.keys(outIds);
+        for(var di=0; di<dids.length; di++){
+          try{ await db.doc("deliveries/"+dids[di]).update({fromTestRequestId:""}); }catch(e){ /* delivery already gone */ }
         }
         if(rec.attachmentId) await deleteAttachment(rec.attachmentId, rec.attachmentChunks);
         if(rec.pdiId) await deleteAttachment(rec.pdiId, rec.pdiChunks);
@@ -2065,15 +2115,18 @@
     }
 
     function proceedToCheckout(rec){
-      if(!rec || rec.deliveryId || rec.status !== "Passed") return;
+      if(!rec) return;
+      // Only the items that have Passed (and aren't already on a delivery) go out on this check-out.
+      var idxs = []; getLines(rec).forEach(function(l, i){ if(!lineOut(rec, l) && lineStatus(rec, l) === "Passed") idxs.push(i); });
+      if(!idxs.length) return;
       exitDeliveryEdit();
-      pendingTestRequestId = rec.id;
+      pendingTestRequestId = rec.id; pendingTestLines = idxs;
       document.querySelector('.navbtn[data-view="delivery"]').click();
       var form = document.getElementById("deliveryForm");
       form.reset();
       form.elements.date.value = new Date().toISOString().slice(0,10);
       form.elements.customer.value = rec.customer||"";
-      var lines = getLines(rec);
+      var lines = getLines(rec).filter(function(l, i){ return idxs.indexOf(i) > -1; });
       fillLinesFor("checkoutLines", lines);
       lockCheckoutLines(true);
       document.getElementById("checkoutFormTitle").textContent = "Check out tested unit(s)";
@@ -2103,7 +2156,7 @@
       var delBtn = e.target.closest("[data-del-kind]");
       var dlBtn = e.target.closest("[data-test-download]");
       if(dlBtn) downloadTestFile(dlBtn.dataset.testDownload, "attachment");
-      if(setBtn) setTestStatus(setBtn.dataset.testId, setBtn.dataset.testSet);
+      if(setBtn) setTestStatus(setBtn.dataset.testId, parseInt(setBtn.dataset.testLine, 10), setBtn.dataset.testSet);
       if(goBtn) proceedToCheckout(state.testRequests.find(function(t){ return t.id === goBtn.dataset.testProceed; }));
       if(editBtn){ var rec = state.testRequests.find(function(t){ return t.id === editBtn.dataset.editId; }); if(rec) openTestEdit(rec); }
       if(delBtn) deleteTestRow(delBtn.dataset.delId);
@@ -2282,8 +2335,7 @@
       (ignoreLines||[]).forEach(function(l){ (l.serials||[]).forEach(function(s){ ignore[l.itemId+"|"+s] = true; }); });
       var testing = {};
       state.testRequests.forEach(function(r){
-        if(!testIsActive(r)) return;
-        getLines(r).forEach(function(l){ (l.serials||[]).forEach(function(s){ testing[l.itemId+"|"+s] = r; }); });
+        getLines(r).forEach(function(l){ if(!lineHoldsStock(r, l)) return; (l.serials||[]).forEach(function(s){ testing[l.itemId+"|"+s] = { r:r, l:l }; }); });
       });
       var seen = {};
       for(var i=0;i<lines.length;i++){
@@ -2293,7 +2345,7 @@
           if(seen[key]) return "Serial number "+s+" is listed twice.";
           seen[key] = true;
           if(it && (it.serials||[]).indexOf(s) > -1 && !ignore[key]) return "Serial number "+s+" is already in stock for "+it.model+".";
-          if(testing[key]) return "Serial number "+s+" is on an open test request ("+testing[key].customer+", "+testing[key].status+"). Set that request to Returned instead.";
+          if(testing[key]) return "Serial number "+s+" is on an open test request ("+testing[key].r.customer+", "+lineShown(testing[key].r, testing[key].l)+"). Set that item to Returned instead.";
         }
       }
       return "";
@@ -2424,12 +2476,24 @@
         payload.statusHistory = oldRec.statusHistory || [];
         await db.doc("deliveries/"+wasEditing).update(payload);
       } else {
+        // The items going out must still be Passed and not already on another delivery.
+        var tr = null;
+        if(pendingTestRequestId){
+          var tsnap = await db.doc("test_requests/"+pendingTestRequestId).get();
+          if(!tsnap.exists) throw new Error("That test request no longer exists.");
+          tr = tsnap.data();
+          var tl = getLines(tr);
+          if(!pendingTestLines.length || pendingTestLines.some(function(i){ return !tl[i] || lineOut(tr, tl[i]) || lineStatus(tr, tl[i]) !== "Passed"; }))
+            throw new Error("The test request changed — those items are no longer ready to check out. Open it again from Testing requests.");
+        }
         payload.status = "For Delivery";
         payload.statusHistory = [{status:"For Delivery", at:new Date().toISOString()}];
         payload.createdAt = new Date().toISOString();
         var newDelivery = await db.collection("deliveries").add(payload);
-        if(pendingTestRequestId){
-          await db.doc("test_requests/"+pendingTestRequestId).update({deliveryId:newDelivery.id, checkedOutAt:new Date().toISOString(), updatedAt:new Date().toISOString()});
+        if(tr){
+          var nowCo = new Date().toISOString();
+          var coLines = getLines(tr).map(function(x, i){ return Object.assign({}, x, {status:lineStatus(tr, x)}, pendingTestLines.indexOf(i) > -1 ? {deliveryId:newDelivery.id} : {}); });
+          await db.doc("test_requests/"+pendingTestRequestId).update({lines:coLines, status:rollupStatus(coLines), checkedOutAt:nowCo, updatedAt:nowCo});
         }
       }
       exitDeliveryEdit();
@@ -2485,7 +2549,7 @@
       var resolved = [];
       for(var li=0; li<lines.length; li++){
         await adjustStock(lines[li].itemId, -lines[li].qty, [], lines[li].serials);
-        resolved.push({itemId:lines[li].itemId, itemLabel:itemLabelOf(lines[li].itemId), qty:lines[li].qty, serials:lines[li].serials});
+        resolved.push({itemId:lines[li].itemId, itemLabel:itemLabelOf(lines[li].itemId), qty:lines[li].qty, serials:lines[li].serials, status:"On going"});
       }
 
       var now = new Date().toISOString();
@@ -2495,7 +2559,7 @@
         updatedAt:now
       };
       // "po" holds the Reference: the PO/RFQ no. taken from the file name (older requests keep what was typed).
-      if(attach){ payload.po = referenceNumber(refFile.name); Object.assign(payload, attach); payload.attachmentRemovedAt = ""; payload.attachmentDownloadedBy = ""; }
+      if(attach){ payload.po = referenceNumber(refFile.name); Object.assign(payload, attach); payload.attachmentRemovedAt = ""; payload.attachmentDownloadedBy = ""; payload.attachmentMainDownloadedAt = ""; payload.attachmentMainDownloadedBy = ""; payload.attachmentTechDownloadedAt = ""; payload.attachmentTechDownloadedBy = ""; }
       try{
         if(old){
           await db.doc("test_requests/"+wasEditing).update(payload);

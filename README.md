@@ -97,14 +97,13 @@ Firestore collection — no extra setup, the existing rules already cover it.
   (PDF, image, Word, Excel, CSV, text or email file, max 3 MB). Name the file
   after the PO/RFQ no. (e.g. `RFQ-2026-014.pdf`) — the **Reference** column
   shows just that number (the file name without its extension).
-- **Download once, then it's removed:** the uploaded file is kept in the
-  database (`request_files` collection, split into small pieces) only until
-  someone clicks **Download file** on that request in the main system. After
-  that one download the file is deleted to save space and the request shows
-  "File downloaded"; the Reference number stays. The Viewing Deck can upload
-  but not download. Deleting a request also deletes a file that's still
-  waiting. When editing a request the attachment is optional; choosing a new
-  file replaces the Reference and the waiting file.
+- **Reference file: two downloads, then it is removed.** The uploaded file is kept in the database (`request_files`
+  collection, split into small pieces) until it has been downloaded twice: once by the main system (**Download file**
+  on the request) and once by the assigned technical on the Technical Dashboard of the Viewing Deck. Either can go
+  first. After the second download the file is deleted to save space and the request shows "File downloaded"; the
+  Reference number stays. A request with no assigned technical is removed after the main system's single download.
+  Deleting a request also deletes a file that is still waiting. When editing a request the attachment is optional;
+  choosing a new file replaces the Reference and the waiting file (and starts the two downloads again).
 - **Assigned technical (required):** every request names the technical who
   will test the units (pick from the list: Mj, Kristian, Robin, Kevin, Renz, Mavs). It shows in the
   Testing requests table and drives the Technical Dashboard.
@@ -154,9 +153,9 @@ typed name or "Unassigned".
 - **No duplicates:** a serial number that's already on another request
   (On going, Passed, or Checked out) can't be requested again, and the same
   serial can't appear twice in one request. Returned units are free again.
-- **Statuses:** On going → **Passed**, **Incomplete**, **Defective** or **Returned**; Incomplete → Passed, Defective or Returned; Passed → Returned.
+- **Statuses are per line item** — each item (line) of a request has its own status, so one request can have a Passed item, a Defective item and an Incomplete one. The request's **Testing requests** row shows a status next to each item, with its own *Mark …* buttons. On going → **Passed**, **Incomplete**, **Defective** or **Returned**; Incomplete → Passed, Defective or Returned; Passed → Returned.
   **Incomplete** means the test is not finished (units stay out of stock, still counted as out for testing). **Defective** means the units failed — they stay out of stock (not added back to the inventory list) and the status is final. The assigned technical can also set these from the Viewing Deck.
-- **Passed** units show a *Proceed to check out* button, which opens the
+- A request with Passed items shows a *Proceed to check out* button (only the Passed items go out on it; the others stay on the request). It opens the
   Delivery Tracker form pre-filled. Stock is *not* deducted a second time
   (item/qty/serials are locked), and the request shows "Checked out".
 - **Returned** puts the units and their serial numbers back in the
